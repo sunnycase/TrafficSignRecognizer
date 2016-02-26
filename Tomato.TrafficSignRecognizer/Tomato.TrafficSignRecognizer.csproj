@@ -110,6 +110,7 @@
     <None Include="Tomato.TrafficSignRecognizer_TemporaryKey.pfx" />
   </ItemGroup>
   <ItemGroup>
+    <Content Include="Assets\stop.jpg" />
     <Content Include="Properties\Default.rd.xml" />
     <Content Include="Assets\LockScreenLogo.scale-200.png" />
     <Content Include="Assets\SplashScreen.scale-200.png" />
@@ -128,6 +129,12 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </Page>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Tomato.TrafficSignRecognizer.Processor\Tomato.TrafficSignRecognizer.Processor.vcxproj">
+      <Project>{02716874-ece0-47c7-8f7d-b2e875a2bd58}</Project>
+      <Name>Tomato.TrafficSignRecognizer.Processor</Name>
+    </ProjectReference>
   </ItemGroup>
   <PropertyGroup Condition=" '$(VisualStudioVersion)' == '' or '$(VisualStudioVersion)' &lt; '14.0' ">
     <VisualStudioVersion>14.0</VisualStudioVersion>
