@@ -21,6 +21,7 @@ public:
 private:
 	concurrency::task<void> PrepareTargetImage(Windows::Graphics::Imaging::BitmapFrame ^ frame);
 	concurrency::task<void> FindContours();
+	concurrency::graphics::texture<concurrency::graphics::unorm, 2> FindEdges();
 private:
 	concurrency::extent<2> _targetImageExtent;
 	concurrency::graphics::texture<concurrency::graphics::unorm_4, 2> _targetImage;

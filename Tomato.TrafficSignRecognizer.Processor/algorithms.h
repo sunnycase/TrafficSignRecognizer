@@ -11,5 +11,7 @@ DEFINE_NS_TSR_PRCSR
 
 concurrency::graphics::unorm Grayscale(const concurrency::graphics::unorm_4& color) restrict(cpu, amp);
 concurrency::graphics::unorm Threshold(concurrency::graphics::unorm color, float threshold) restrict(cpu, amp);
+concurrency::graphics::unorm SusanTest(const concurrency::graphics::texture_view<const concurrency::graphics::unorm_4, 2>& image, concurrency::index<2> index, unsigned int radius, float threshold) restrict(amp);
+void HoughCircles(concurrency::array<concurrency::graphics::uint, 2>& image);
 
 END_NS_TSR_PRCSR
