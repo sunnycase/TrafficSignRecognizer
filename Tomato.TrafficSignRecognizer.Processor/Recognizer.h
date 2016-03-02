@@ -21,11 +21,15 @@ public:
 private:
 	concurrency::task<void> PrepareTargetImage(Windows::Graphics::Imaging::BitmapFrame ^ frame);
 	concurrency::task<void> FindContours();
-	concurrency::graphics::texture<concurrency::graphics::unorm, 2> FindEdges();
+	// 查找边缘并计算切线方向
+	void FindEdgesAndTangent();
+	concurrency::graphics::texture<float, 3> FindEllipses(const concurrency::graphics::texture_view<const concurrency::graphics::unorm, 2>& edges);
 private:
 	concurrency::extent<2> _targetImageExtent;
 	concurrency::graphics::texture<concurrency::graphics::unorm_4, 2> _targetImage;
 	concurrency::array<concurrency::graphics::uint, 2> _outputTex;
+	concurrency::graphics::texture<concurrency::graphics::unorm, 2> _edgeTex;
+	concurrency::graphics::texture<float, 2> _tangentTex;
 };
 
 END_NS_TSR_PRCSR

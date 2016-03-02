@@ -53,6 +53,25 @@ concurrency::graphics::unorm SusanTest(const texture_view<const unorm_4, 2>& ima
 	return unorm(same < (total / 2) ? 1.f : 0.f);
 }
 
+float CalculateTangent(const concurrency::graphics::texture_view<const concurrency::graphics::unorm_4, 2>& image, concurrency::index<2> index) restrict(amp)
+{
+	float a[9];
+	a[0] = Grayscale(image.sample(float_2(float(index[1] - 1) / (float)image.extent[1], float(index[0] - 1) / (float)image.extent[0])));
+	a[1] = Grayscale(image.sample(float_2(float(index[1]) / (float)image.extent[1], float(index[0] - 1) / (float)image.extent[0])));
+	a[2] = Grayscale(image.sample(float_2(float(index[1] + 1) / (float)image.extent[1], float(index[0] - 1) / (float)image.extent[0])));
+
+	a[3] = Grayscale(image.sample(float_2(float(index[1] - 1) / (float)image.extent[1], float(index[0]) / (float)image.extent[0])));
+	a[5] = Grayscale(image.sample(float_2(float(index[1] + 1) / (float)image.extent[1], float(index[0]) / (float)image.extent[0])));
+
+	a[6] = Grayscale(image.sample(float_2(float(index[1] - 1) / (float)image.extent[1], float(index[0] + 1) / (float)image.extent[0])));
+	a[7] = Grayscale(image.sample(float_2(float(index[1]) / (float)image.extent[1], float(index[0] + 1) / (float)image.extent[0])));
+	a[8] = Grayscale(image.sample(float_2(float(index[1] + 1) / (float)image.extent[1], float(index[0] + 1) / (float)image.extent[0])));
+
+	auto Gx = (a[6] + 2 * a[7] + a[8]) - (a[0] + 2 * a[1] + a[2]);
+	auto Gy = (a[2] + 2 * a[5] + a[8]) - (a[0] + 2 * a[3] + a[6]);
+	return Gy / Gx;
+}
+
 void HoughCircles(concurrency::array<concurrency::graphics::uint, 2>& image)
 {
 	std::vector<::uint> source(image.extent.size());
@@ -63,7 +82,7 @@ void HoughCircles(concurrency::array<concurrency::graphics::uint, 2>& image)
 
 	//std::transform(grayMat.datastart, grayMat.dataend, source.begin(), [](byte color) { return ::uint(0xFF000000 | (color << 16) | (color << 8) | color);});
 	//copy(source.begin(), source.end(), image);
-	
+
 	std::vector<std::vector<cv::Point>> contours;
 	cv::findContours(grayMat, contours, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_NONE);
 	auto p = contours.size();

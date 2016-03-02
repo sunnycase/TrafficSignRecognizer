@@ -17,7 +17,8 @@ using namespace Windows::Graphics::Imaging;
 
 Recognizer::Recognizer(unsigned int width, unsigned int height)
 	:_targetImageExtent(height, width),
-	_targetImage(_targetImageExtent, 16U), _outputTex(_targetImageExtent)
+	_targetImage(_targetImageExtent, 16U), _outputTex(_targetImageExtent),
+	_edgeTex(_targetImageExtent, 8), _tangentTex(_targetImageExtent, 32)
 {
 
 }
@@ -64,42 +65,65 @@ concurrency::task<void> Recognizer::PrepareTargetImage(BitmapFrame ^ frame)
 		auto data = dataProvider->DetachPixelData();
 		array<uint, 2> src(_targetImageExtent, (uint*)data->begin(), (uint*)data->end());
 		texture_view<unorm_4, 2> targetImage(_targetImage);
-		parallel_for_each(src.extent, [&src, targetImage](index<2> idx) restrict(amp)
+		parallel_for_each(src.extent, [&src, targetImage](index<2> index) restrict(amp)
 		{
-			auto pixel = src[idx];
+			auto pixel = src[index];
 
 			auto r = ((pixel & 0xFF0000) >> 16) / 255.f;
 			auto g = ((pixel & 0xFF00) >> 8) / 255.f;
 			auto b = (pixel & 0xFF) / 255.f;
-			targetImage.set(idx, unorm_4(r, g, b, 1.f));
+			targetImage.set(index, unorm_4(r, g, b, 1.f));
 		});
 	});
 }
 
 concurrency::task<void> Recognizer::FindContours()
 {
-	texture_view<const unorm, 2> edges(FindEdges());
+	FindEdgesAndTangent();
+	texture_view<const unorm, 2> edges(_edgeTex);
+	texture_view<const float, 2> tangents(_tangentTex);
 	array_view<uint, 2> outputTex(_outputTex);
-	parallel_for_each(_targetImageExtent, [edges, outputTex](index<2> idx) restrict(amp)
+	parallel_for_each(_targetImageExtent, [edges, tangents, outputTex](index<2> index) restrict(amp)
 	{
-		auto gray = edges[idx];
-
-		auto lastGray = uint(gray * 255);
-		outputTex[idx] = uint(0xFF000000 | (lastGray << 16) | (lastGray << 8) | lastGray);
+		auto gray = fast_math::sin(fast_math::atan(tangents[index]));
+		if (gray < 0)
+		{
+			auto lastGray = uint(-gray * 255);
+			outputTex[index] = uint(0xFF000000 | (lastGray << 16) | (lastGray << 8));
+		}
+		else
+		{
+			auto lastGray = uint(gray * 255);
+			outputTex[index] = uint(0xFF000000 | (lastGray << 8) | lastGray);
+		}
 	});
 	//HoughCircles(_outputTex);
 	return task_from_result();
 }
 
-concurrency::graphics::texture<concurrency::graphics::unorm, 2> Recognizer::FindEdges()
+void Recognizer::FindEdgesAndTangent()
 {
 	uint radius = 3;
-	texture<unorm, 2> edgeTex(_targetImageExtent, 8);
-	texture_view<unorm, 2> edgeView(edgeTex);
+	texture_view<unorm, 2> edgeView(_edgeTex);
+	texture_view<float, 2> tangentView(_tangentTex);
 	texture_view<const unorm_4, 2> inputTex(_targetImage);
-	parallel_for_each(inputTex.extent, [inputTex, edgeView, radius](index<2> idx) restrict(amp)
+	parallel_for_each(inputTex.extent, [inputTex, edgeView, tangentView, radius](index<2> index) restrict(amp)
 	{
-		edgeView.set(idx, SusanTest(inputTex, idx, radius, 0.1f));
+		auto edge = SusanTest(inputTex, index, radius, 0.1f);
+		edgeView.set(index, edge);
+
+		if (edge > 0.f)
+			tangentView.set(index, CalculateTangent(inputTex, index));
 	});
-	return std::move(edgeTex);
+}
+
+concurrency::graphics::texture<float, 3> Recognizer::FindEllipses(const concurrency::graphics::texture_view<const concurrency::graphics::unorm, 2>& edges)
+{
+	int maxRadius = std::max(_targetImageExtent[0], _targetImageExtent[1]) / 2;
+	texture<float, 3> ellipses(extent<3>(_targetImageExtent[0], _targetImageExtent[1], maxRadius));
+	parallel_for_each(edges.extent, [edges, &ellipses, maxRadius](index<2> index) restrict(amp)
+	{
+
+	});
+	return std::move(ellipses);
 }
