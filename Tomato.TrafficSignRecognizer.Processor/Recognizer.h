@@ -23,7 +23,7 @@ private:
 	concurrency::task<void> FindContours();
 	// 查找边缘并计算切线方向
 	void FindEdgesAndTangent();
-	concurrency::graphics::texture<float, 3> FindEllipses(const concurrency::graphics::texture_view<const concurrency::graphics::unorm, 2>& edges);
+	concurrency::task<void> FindEllipses();
 private:
 	concurrency::extent<2> _targetImageExtent;
 	concurrency::graphics::texture<concurrency::graphics::unorm_4, 2> _targetImage;

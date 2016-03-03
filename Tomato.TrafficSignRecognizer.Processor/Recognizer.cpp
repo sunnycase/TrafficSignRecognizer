@@ -7,6 +7,7 @@
 #include "Recognizer.h"
 #include <amp_math.h>
 #include "algorithms.h"
+#include "amprng/amp_sobol_rng.h"
 
 using namespace NS_TSR_PRCSR;
 using namespace Platform;
@@ -14,6 +15,7 @@ using namespace concurrency;
 using namespace concurrency::graphics;
 using namespace Windows::Foundation;
 using namespace Windows::Graphics::Imaging;
+using namespace WRL;
 
 Recognizer::Recognizer(unsigned int width, unsigned int height)
 	:_targetImageExtent(height, width),
@@ -83,22 +85,24 @@ concurrency::task<void> Recognizer::FindContours()
 	texture_view<const unorm, 2> edges(_edgeTex);
 	texture_view<const float, 2> tangents(_tangentTex);
 	array_view<uint, 2> outputTex(_outputTex);
-	parallel_for_each(_targetImageExtent, [edges, tangents, outputTex](index<2> index) restrict(amp)
+
+	return FindEllipses().then([=]
 	{
-		auto gray = fast_math::sin(fast_math::atan(tangents[index]));
-		if (gray < 0)
+		parallel_for_each(_targetImageExtent, [edges, tangents, outputTex](index<2> index) restrict(amp)
 		{
-			auto lastGray = uint(-gray * 255);
-			outputTex[index] = uint(0xFF000000 | (lastGray << 16) | (lastGray << 8));
-		}
-		else
-		{
-			auto lastGray = uint(gray * 255);
-			outputTex[index] = uint(0xFF000000 | (lastGray << 8) | lastGray);
-		}
+			auto gray = fast_math::sin(fast_math::atan(tangents[index]));
+			if (gray < 0)
+			{
+				auto lastGray = uint(-gray * 255);
+				outputTex[index] = uint(0xFF000000 | (lastGray << 16) | (lastGray << 8));
+			}
+			else
+			{
+				auto lastGray = uint(gray * 255);
+				outputTex[index] = uint(0xFF000000 | (lastGray << 8) | lastGray);
+			}
+		});
 	});
-	//HoughCircles(_outputTex);
-	return task_from_result();
 }
 
 void Recognizer::FindEdgesAndTangent()
@@ -117,13 +121,52 @@ void Recognizer::FindEdgesAndTangent()
 	});
 }
 
-concurrency::graphics::texture<float, 3> Recognizer::FindEllipses(const concurrency::graphics::texture_view<const concurrency::graphics::unorm, 2>& edges)
+task<void> Recognizer::FindEllipses()
 {
-	int maxRadius = std::max(_targetImageExtent[0], _targetImageExtent[1]) / 2;
-	texture<float, 3> ellipses(extent<3>(_targetImageExtent[0], _targetImageExtent[1], maxRadius));
-	parallel_for_each(edges.extent, [edges, &ellipses, maxRadius](index<2> index) restrict(amp)
-	{
+	array<uint, 2> edgePointsCount(1, 1);
+	array<index<2>, 2> edgePositions(_targetImageExtent);
+	texture_view<const unorm, 2> edgeView(_edgeTex);
 
+	parallel_for_each(edgeView.extent, [&edgePointsCount, &edgePositions, edgeView](index<2> index) restrict(amp)
+	{
+		if (edgeView[index] != 0.f)
+		{
+			auto idx = atomic_fetch_add(&edgePointsCount(0, 0), 1);
+			auto x = idx % edgeView.extent[1];
+			auto y = idx / edgeView.extent[1];
+			edgePositions(y, x) = index;
+		}
 	});
-	return std::move(ellipses);
+
+	static const int rank = 1;
+	static const unsigned dimensions = 2;
+
+	extent<rank> e_size(10000);
+	sobol_rng_collection<sobol_rng<dimensions>, rank> sc_rng(e_size, 5489);
+
+	typedef sobol_rng<dimensions>::sobol_number<float> sobol_float_number;
+	array<sobol_float_number, rank> rand_out_data(e_size);
+
+	// Each thread generates one multi-dimension sobol_float_number 
+	parallel_for_each(e_size, [=, &rand_out_data](index<rank> idx) restrict(amp)
+	{
+		// Get the sobol RNG 
+		auto rng = sc_rng[idx];
+
+		// Skip ahead to the right position
+		rng.skip(sc_rng.direction_numbers(), idx[0]);
+
+		// Get the sobol number 
+		sobol_float_number& sf_num = rand_out_data[idx];
+		for (int i = 1; i <= dimensions; i++)
+		{
+			sf_num[i - 1] = rng.get_single(i);
+		}
+	});
+
+	// Read the sobol sequence back to host
+	std::vector<sobol_float_number> ref_data(e_size.size());
+	copy(rand_out_data, ref_data.begin());
+
+	return task_from_result();
 }

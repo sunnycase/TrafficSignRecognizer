@@ -11,6 +11,9 @@
     <Filter Include="源文件">
       <UniqueIdentifier>{ef80cb85-a057-45b9-9f57-3422f163bb6e}</UniqueIdentifier>
     </Filter>
+    <Filter Include="头文件\amprng">
+      <UniqueIdentifier>{4c283539-8844-4d69-84ab-6d258f846abd}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="pch.cpp">
@@ -35,6 +38,18 @@
     </ClInclude>
     <ClInclude Include="algorithms.h">
       <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="platform.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="amprng\amp_rand_collection.h">
+      <Filter>头文件\amprng</Filter>
+    </ClInclude>
+    <ClInclude Include="amprng\amp_sobol_rng.h">
+      <Filter>头文件\amprng</Filter>
+    </ClInclude>
+    <ClInclude Include="amprng\xxamp_sobol_rng.h">
+      <Filter>头文件\amprng</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

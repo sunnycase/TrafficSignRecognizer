@@ -227,8 +227,12 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="algorithms.h" />
+    <ClInclude Include="amprng\amp_rand_collection.h" />
+    <ClInclude Include="amprng\amp_sobol_rng.h" />
+    <ClInclude Include="amprng\xxamp_sobol_rng.h" />
     <ClInclude Include="common.h" />
     <ClInclude Include="pch.h" />
+    <ClInclude Include="platform.h" />
     <ClInclude Include="Recognizer.h" />
   </ItemGroup>
   <ItemGroup>
