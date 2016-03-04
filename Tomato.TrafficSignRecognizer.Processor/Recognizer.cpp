@@ -123,7 +123,7 @@ void Recognizer::FindEdgesAndTangent()
 
 task<void> Recognizer::FindEllipses()
 {
-	array<uint, 2> edgePointsCount(1, 1);
+	array<uint, 2> edgePointsCount(1, 1, accelerator().default_view, access_type_read);
 	array<index<2>, 2> edgePositions(_targetImageExtent);
 	texture_view<const unorm, 2> edgeView(_edgeTex);
 
@@ -138,35 +138,43 @@ task<void> Recognizer::FindEllipses()
 		}
 	});
 
-	static const int rank = 1;
-	static const unsigned dimensions = 2;
+	const auto edgeSize = extent<1>(edgePointsCount(0, 0));
 
-	extent<rank> e_size(10000);
-	sobol_rng_collection<sobol_rng<dimensions>, rank> sc_rng(e_size, 5489);
-
-	typedef sobol_rng<dimensions>::sobol_number<float> sobol_float_number;
-	array<sobol_float_number, rank> rand_out_data(e_size);
-
-	// Each thread generates one multi-dimension sobol_float_number 
-	parallel_for_each(e_size, [=, &rand_out_data](index<rank> idx) restrict(amp)
+	typedef sobol_rng<1>::sobol_number<float> sobol_float_number;
+	sobol_rng_collection<sobol_rng<1>, 1> sc_rng(edgeSize, 1);
+	concurrency::graphics::texture_view<const float, 2> tangentView(_tangentTex);
+	array<float, 1> ids(edgeSize, accelerator().default_view, access_type_read);
+	parallel_for_each(edgeSize / 2, [=, &edgePositions, &ids](index<1> index) restrict(amp)
 	{
+		const auto id1 = index[0];
+		const auto x1 = id1 % edgeView.extent[1];
+		const auto y1 = id1 / edgeView.extent[1];
+		const auto p1Index = edgePositions(y1, x1);
+
 		// Get the sobol RNG 
-		auto rng = sc_rng[idx];
-
+		auto rng = sc_rng[index];
 		// Skip ahead to the right position
-		rng.skip(sc_rng.direction_numbers(), idx[0]);
+		rng.skip(sc_rng.direction_numbers(), index[0]);
 
-		// Get the sobol number 
-		sobol_float_number& sf_num = rand_out_data[idx];
-		for (int i = 1; i <= dimensions; i++)
-		{
-			sf_num[i - 1] = rng.get_single(i);
-		}
+		const auto id2 = int(rng.get_single(1) * edgeSize[0]);
+		const auto x2 = id2 % edgeView.extent[1];
+		const auto y2 = id2 / edgeView.extent[1];
+		const auto p2Index = edgePositions(y2, x2);
+		FitEllipse(p1Index, p2Index, tangentView[p1Index], tangentView[p2Index], edgeView, tangentView, ids[index]);
 	});
 
-	// Read the sobol sequence back to host
-	std::vector<sobol_float_number> ref_data(e_size.size());
-	copy(rand_out_data, ref_data.begin());
+	auto p = ids.data();
+	auto c = std::count_if(p, p + ids.extent.size(), [](float v) { return v != 0.f;});
+
+	float mat[5][6] = 
+	{
+		{ 2, 0, 0, 0, 0, 100 },
+		{ 4, 1, 0, 0, 0, 100 },
+		{ 0, 0, 1, 0, 0, 100 },
+		{ 0, 0, 0, 1, 0, 100 },
+		{ 0, 0, 0, 0, 1, 100 }
+	};
+	auto ret = Solve(mat);
 
 	return task_from_result();
 }
