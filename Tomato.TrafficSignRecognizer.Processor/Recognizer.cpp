@@ -88,12 +88,12 @@ concurrency::task<void> Recognizer::FindContours()
 
 	return FindEllipses().then([=]
 	{
-		parallel_for_each(_targetImageExtent, [edges, tangents, outputTex](index<2> index) restrict(amp)
-		{
-			auto gray = fast_math::fabs(fast_math::sin(fast_math::atan(tangents[index])));
-			auto lastGray = uint(gray * 255);
-			outputTex[index] = uint(0xFF000000 | (lastGray << 16) | (lastGray << 8) | lastGray);
-		});
+		//parallel_for_each(_targetImageExtent, [edges, tangents, outputTex](index<2> index) restrict(amp)
+		//{
+		//	auto gray = fast_math::fabs(fast_math::sin(fast_math::atan(tangents[index])));
+		//	auto lastGray = uint(gray * 255);
+		//	outputTex[index] = uint(0xFF000000 | (lastGray << 16) | (lastGray << 8) | lastGray);
+		//});
 	});
 }
 
@@ -115,14 +115,16 @@ void Recognizer::FindEdgesAndTangent()
 
 #define F 1000.f
 
-bool Test(float height)
+EllipseParam Test(float height)
 {
 	// 取 3 点为中心边长为 3 的 3 个正方形，共 27 点
-		const float_2 points[] = {
-			float_2(31, height - 37),float_2(32, height - 36),float_2(31, height - 38),float_2(30, height - 38),
-			float_2(46, height - 26),float_2(46, height - 25),float_2(100, height - 41),
-			float_2(40, height - 29),
-		};
+	const float_2 points[] = {
+		//float_2(44, height - 26),float_2(45, height - 26),float_2(44, height - 27),float_2(43, height - 27),float_2(46, height - 26),float_2(46, height - 25),
+		//float_2(46, height - 72),float_2(45, height - 72),float_2(47, height - 73),float_2(48, height - 73),
+		//float_2(27, height - 48),float_2(27, height - 47),float_2(27, height - 49),float_2(27, height - 46),
+		float_2(101, height - 49), float_2(27, height - 48),float_2(58, height - 22),float_2(87, height - 71),float_2(39, height - 69),
+		float_2(93, height - 33),
+	};
 	static const graphics::uint maxPoints = sizeof(points) / sizeof(float_2);
 
 	uint32_t rows = 0;
@@ -163,7 +165,7 @@ bool Test(float height)
 		}
 		float sum = 0;
 		for (uint32_t k = 0; k < rows; k++)
-			sum += UT[i][k] * F;
+			sum += UT[i][k] * -F;
 		mat[i][5] = sum;
 	}
 	if (auto solved = Solve(mat))
@@ -182,36 +184,38 @@ bool Test(float height)
 				/ (4 * ellipse.C - ellipse.B * ellipse.B / ellipse.A) - F + ellipse.D *ellipse.D / (4 * ellipse.A))
 				/ (ellipse.C - ellipse.B * ellipse.B / (4 * ellipse.A)));
 
-			return true;
+			return ellipse;
 		}
 	}
 }
 
 task<void> Recognizer::FindEllipses()
 {
+	float x[2];
+	Solve(1, 0, -1, x);
+
 	float height = _targetImageExtent[0];
-	Test(height);
 
-	//index<2> p1(24, 90), p2(66, 99);
-	//float p1Tan(-0.427449489), p2Tan(1.000773973);
-	//float tan[2];
-	//
-	//tan[0] = fast_math::atan(p1Tan) / 6.28f * 360.f;
-	//tan[1] = fast_math::atan(p2Tan) / 6.28f * 360.f;
+	index<2> p1(24, 90), p2(66, 99);
+	float p1Tan(-0.427449489), p2Tan(1.000773973);
+	float tan[2];
+	
+	tan[0] = fast_math::atan(p1Tan) / 6.28f * 360.f;
+	tan[1] = fast_math::atan(p2Tan) / 6.28f * 360.f;
 
-	//const auto pP1 = float_2(p1[1], height - p1[0]);
-	//const auto pP2 = float_2(p2[1], height - p2[0]);
-	//// 求交点(椭圆的极) T
-	//const auto b1 = pP1.y - pP1.x * p1Tan;
-	//const auto b2 = pP2.y - pP1.x * p2Tan;
-	//const auto pTx = (b1 - b2) / (p2Tan - p1Tan);
-	//const auto pT = float_2(pTx, pTx * p1Tan + b1);
-	//// P1P2 的中点 M
-	//const auto pM = (pP1 + pP2) / 2.f;
-	//// MT 的中点 G
-	//const auto pG = (pM + pT) / 2.f;
+	const auto pP1 = float_2(p1[1], height - p1[0]);
+	const auto pP2 = float_2(p2[1], height - p2[0]);
+	// 求交点(椭圆的极) T
+	const auto b1 = pP1.y - pP1.x * p1Tan;
+	const auto b2 = pP2.y - pP1.x * p2Tan;
+	const auto pTx = (b1 - b2) / (p2Tan - p1Tan);
+	const auto pT = float_2(pTx, pTx * p1Tan + b1);
+	// P1P2 的中点 M
+	const auto pM = (pP1 + pP2) / 2.f;
+	// MT 的中点 G
+	const auto pG = (pM + pT) / 2.f;
 
-	//const auto idxPT = index<2>(height - pT.y, pT.x);
+	const auto idxPT = index<2>(height - pT.y, pT.x);
 
 	array<uint, 2> edgePointsCount(1, 1, accelerator().default_view, access_type_read);
 	array<index<2>, 2> edgePositions(_targetImageExtent);
@@ -229,7 +233,7 @@ task<void> Recognizer::FindEllipses()
 	});
 
 	const auto edgeSize = extent<1>(edgePointsCount(0, 0));
-	const auto maxEllipses = edgeSize / 2;
+	const auto maxEllipses = edgeSize / 4;
 
 	typedef sobol_rng<1>::sobol_number<float> sobol_float_number;
 	sobol_rng_collection<sobol_rng<1>, 1> sc_rng(edgeSize, 1);
@@ -237,14 +241,7 @@ task<void> Recognizer::FindEllipses()
 	array<uint32_t, 1> fitsCount(1, accelerator().default_view, access_type_read);
 	array<EllipseParam, 1> ellipses(maxEllipses);
 
-	struct P
-	{
-		index<2> p[3];
-		float tan[2], otan[2];
-	};
-	array<P, 1> ids(maxEllipses, accelerator().default_view, access_type_read);
-	array<float, 1> ids2(maxEllipses, accelerator().default_view, access_type_read);
-	parallel_for_each(maxEllipses, [=, &edgePositions, &fitsCount, &ellipses, &ids, &ids2](index<1> index) restrict(amp)
+	parallel_for_each(maxEllipses, [=, &edgePositions, &fitsCount, &ellipses](index<1> index) restrict(amp)
 	{
 		const auto id1 = index[0];
 		const auto x1 = id1 % edgeView.extent[1];
@@ -260,13 +257,7 @@ task<void> Recognizer::FindEllipses()
 		const auto x2 = id2 % edgeView.extent[1];
 		const auto y2 = id2 / edgeView.extent[1];
 		const auto p2Index = edgePositions(y2, x2);
-		//ids(index).p[0] = p1Index;
-		//ids(index).p[1] = p2Index;
-		//ids(index).otan[0] = tangentView[p1Index];
-		//ids(index).otan[1] = tangentView[p2Index];
-		//ids(index).tan[0] = fast_math::atan(tangentView[p1Index]) / 6.28f * 360.f;
-		//ids(index).tan[1] = fast_math::atan(tangentView[p2Index]) / 6.28f * 360.f;
-		FitEllipse(p1Index, p2Index, tangentView[p1Index], tangentView[p2Index], edgeView, tangentView, fitsCount, ellipses, ids(index).p[2]);
+		FitEllipse(p1Index, p2Index, tangentView[p1Index], tangentView[p2Index], edgeView, tangentView, fitsCount, ellipses);
 	});
 
 	parallel_for_each(edgeSize, [=, &fitsCount, &ellipses, &edgePositions](index<1> index)restrict(amp)
@@ -280,7 +271,7 @@ task<void> Recognizer::FindEllipses()
 		for (uint32_t i = 0; i < ellipseCount; i++)
 		{
 			auto& ellipse = ellipses(i);
-			if (OnEllipse(ellipse, float_2(p1[1], height - p1[0]), 3.f))
+			if (OnEllipse(ellipse, float_2(p1[1], height - p1[0]), .5f))
 				atomic_fetch_add(&ellipse.rank, 1);
 		}
 	});
@@ -294,7 +285,23 @@ task<void> Recognizer::FindEllipses()
 		{
 			return left.rank > right.rank;
 		});
-		ellipsesSort.size();
+		std::vector<EllipseParam> ellipsesFit;
+		const float lambda = 0.2f;
+		for (auto&& it : ellipsesSort)
+		{
+			auto min = lambda*3.14f * (1.5f * (it.a + it.b) - fast_math::sqrt(it.a * it.b));
+			if (it.rank >= min)
+				ellipsesFit.emplace_back(it);
+		}
+
+		auto el = ellipsesSort.front();
+		array_view<uint, 2> outputTex(_outputTex);
+		parallel_for_each(_targetImageExtent, [=](index<2> index) restrict(amp)
+		{
+			auto gray = OnEllipse(el, float_2(index[1], height - index[0]), 0.5f) ? 1.f : 0.f;
+			auto lastGray = uint(gray * 255);
+			outputTex[index] = uint(0xFF000000 | (lastGray << 16) | (lastGray << 8) | lastGray);
+		});
 	}
 
 	//float mat[5][6] = 

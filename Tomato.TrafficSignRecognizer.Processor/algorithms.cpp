@@ -75,7 +75,7 @@ float CalculateTangent(const concurrency::graphics::texture_view<const concurren
 }
 
 bool FitEllipse(concurrency::index<2> p1, concurrency::index<2> p2, float p1Tan, float p2Tan, const concurrency::graphics::texture_view<const concurrency::graphics::unorm, 2>& edgeView, const concurrency::graphics::texture_view<const float, 2>& tangentView, concurrency::array<uint32_t, 1>& fitsCount,
-	concurrency::array<EllipseParam, 1>& ellipses, index<2>& p3) restrict(amp)
+	concurrency::array<EllipseParam, 1>& ellipses) restrict(amp)
 {
 	// 如果两切线平行则无法判断
 	if (p1Tan == p2Tan) return false;
@@ -123,7 +123,6 @@ bool FitEllipse(concurrency::index<2> p1, concurrency::index<2> p2, float p1Tan,
 				{
 					// 平行
 					pP3 = cntP3;
-					p3 = index<2>(height - pP3.y, pP3.x);
 					findP3 = true;
 					break;
 				}
@@ -134,17 +133,20 @@ bool FitEllipse(concurrency::index<2> p1, concurrency::index<2> p2, float p1Tan,
 	{
 		// 取 3 点为中心边长为 3 的 3 个正方形，共 27 点
 		const float_2 points[] = {
-			pP1 + float_2(-1, -1), pP1 + float_2(0, -1), pP1 + float_2(1, -1),
-			pP1 + float_2(-1, 0),  pP1,					 pP1 + float_2(1, 0),
-			pP1 + float_2(-1, 1),  pP1 + float_2(0, 1),  pP1 + float_2(1, 1),
+			pP1 + float_2(-2, -1), pP1 + float_2(-1, -1), pP1 + float_2(0, -1), pP1 + float_2(1, -1),
+			pP1 + float_2(-2, 0),  pP1 + float_2(-1, 0),  pP1,					pP1 + float_2(1, 0),
+			pP1 + float_2(-2, 1),  pP1 + float_2(-1, 1),  pP1 + float_2(0, 1),  pP1 + float_2(1, 1),
+			pP1 + float_2(-2, 2),  pP1 + float_2(-1, 2),  pP1 + float_2(0, 2),  pP1 + float_2(1, 2),
 
-			pP2 + float_2(-1, -1), pP2 + float_2(0, -1), pP2 + float_2(1, -1),
-			pP2 + float_2(-1, 0),  pP2,					 pP2 + float_2(1, 0),
-			pP2 + float_2(-1, 1),  pP2 + float_2(0, 1),  pP2 + float_2(1, 1),
+			pP2 + float_2(-2, -1), pP2 + float_2(-1, -1), pP2 + float_2(0, -1), pP2 + float_2(1, -1),
+			pP2 + float_2(-2, 0),  pP2 + float_2(-1, 0),  pP2,					pP2 + float_2(1, 0),
+			pP2 + float_2(-2, 1),  pP2 + float_2(-1, 1),  pP2 + float_2(0, 1),  pP2 + float_2(1, 1),
+			pP2 + float_2(-2, 2),  pP2 + float_2(-1, 2),  pP2 + float_2(0, 2),  pP2 + float_2(1, 2),
 
-			pP3 + float_2(-1, -1), pP3 + float_2(0, -1), pP3 + float_2(1, -1),
-			pP3 + float_2(-1, 0),  pP3,					 pP3 + float_2(1, 0),
-			pP3 + float_2(-1, 1),  pP3 + float_2(0, 1),  pP3 + float_2(1, 1)
+			pP3 + float_2(-2, -1), pP3 + float_2(-1, -1), pP3 + float_2(0, -1), pP3 + float_2(1, -1),
+			pP3 + float_2(-2, 0),  pP3 + float_2(-1, 0),  pP3,					pP3 + float_2(1, 0),
+			pP3 + float_2(-2, 1),  pP3 + float_2(-1, 1),  pP3 + float_2(0, 1),  pP3 + float_2(1, 1),
+			pP3 + float_2(-2, 2),  pP3 + float_2(-1, 2),  pP3 + float_2(0, 2),  pP3 + float_2(1, 2)
 		};
 		static const graphics::uint maxPoints = sizeof(points) / sizeof(float_2);
 
@@ -186,7 +188,7 @@ bool FitEllipse(concurrency::index<2> p1, concurrency::index<2> p2, float p1Tan,
 			}
 			float sum = 0;
 			for (uint32_t k = 0; k < rows; k++)
-				sum += UT[i][k] * F;
+				sum += UT[i][k] * -F;
 			mat[i][5] = sum;
 		}
 		if (auto solved = Solve(mat))
@@ -254,7 +256,7 @@ bool Solve(float(&mat)[5][6]) restrict(cpu, amp)
 	return true;
 }
 
-bool OnEllipse(const EllipseParam & ellipse, concurrency::graphics::float_2 point, float threhold) restrict(amp)
+bool OnEllipse(const EllipseParam & ellipse, concurrency::graphics::float_2 point, float threhold) restrict(cpu,amp)
 {
 	// x 方向交点 y = y0
 	float x[2];
@@ -279,8 +281,8 @@ bool Solve(float a, float b, float c, float(&x)[2]) restrict(cpu, amp)
 	if (tmp < 0)
 		return false;
 	tmp = fast_math::sqrt(tmp);
-	x[0] = (-b + tmp) / 2.f * a;
-	x[1] = (-b - tmp) / 2.f * a;
+	x[0] = (-b + tmp) / (2.f * a);
+	x[1] = (-b - tmp) / (2.f * a);
 	return true;
 }
 
