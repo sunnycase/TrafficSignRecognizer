@@ -26,6 +26,7 @@ private:
 	concurrency::task<void> FindEllipses();
 private:
 	concurrency::extent<2> _targetImageExtent;
+	concurrency::accelerator_view _acc_view;
 	concurrency::graphics::texture<concurrency::graphics::unorm_4, 2> _targetImage;
 	concurrency::array<concurrency::graphics::uint, 2> _outputTex;
 	concurrency::graphics::texture<concurrency::graphics::unorm, 2> _edgeTex;

@@ -46,6 +46,11 @@ public:
     {
 
     }
+	amp_rand_collection(const concurrency::accelerator_view& acc_view, const concurrency::extent<_rank> rand_extent, int seed = 0) :
+		m_rng_av(concurrency::array<_rng_type, _rank>(rand_extent, acc_view))
+	{
+
+	}
 
     ~amp_rand_collection()
     {

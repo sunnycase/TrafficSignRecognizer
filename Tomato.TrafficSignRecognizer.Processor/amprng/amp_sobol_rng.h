@@ -210,6 +210,20 @@ public:
         });
     }
 
+	sobol_rng_collection(const concurrency::accelerator_view& acc_view, const concurrency::extent<rank> rand_extent, unsigned skipahead = 0)
+		:_base(acc_view, rand_extent),
+		direction_num_av(concurrency::extent<2>(sobol_rng_lib::dimension_limit, sobol_rng_lib::rng_bits),
+			sobol_rng_lib::direction_nums)
+	{
+		concurrency::array_view<rng_type, rank> rng_av(m_rng_av);
+		concurrency::array_view<unsigned, 2> direction_nums(direction_num_av);
+
+		parallel_for_each(acc_view, rand_extent, [=](concurrency::index<rank> idx) restrict(amp)
+		{
+			rng_av[idx].initialize(direction_nums, skipahead);
+		});
+	}
+
     // Get direction numbers
     const sobol_rng_lib::direction_num_view& direction_numbers() const restrict(cpu, amp)
     {

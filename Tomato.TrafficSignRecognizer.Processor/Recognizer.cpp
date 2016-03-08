@@ -19,8 +19,9 @@ using namespace WRL;
 
 Recognizer::Recognizer(unsigned int width, unsigned int height)
 	:_targetImageExtent(height, width),
-	_targetImage(_targetImageExtent, 16U), _outputTex(_targetImageExtent),
-	_edgeTex(_targetImageExtent, 8), _tangentTex(_targetImageExtent, 32)
+	_acc_view(concurrency::direct3d::create_accelerator_view(accelerator(), true)),
+	_targetImage(_targetImageExtent, 16U, _acc_view), _outputTex(_targetImageExtent, _acc_view),
+	_edgeTex(_targetImageExtent, 8, _acc_view), _tangentTex(_targetImageExtent, 32, _acc_view)
 {
 
 }
@@ -65,9 +66,9 @@ concurrency::task<void> Recognizer::PrepareTargetImage(BitmapFrame ^ frame)
 		.then([=](PixelDataProvider^ dataProvider)
 	{
 		auto data = dataProvider->DetachPixelData();
-		array<uint, 2> src(_targetImageExtent, (uint*)data->begin(), (uint*)data->end());
+		array<uint, 2> src(_targetImageExtent, (uint*)data->begin(), (uint*)data->end(), _acc_view);
 		texture_view<unorm_4, 2> targetImage(_targetImage);
-		parallel_for_each(src.extent, [&src, targetImage](index<2> index) restrict(amp)
+		parallel_for_each(_acc_view, src.extent, [&src, targetImage](index<2> index) restrict(amp)
 		{
 			auto pixel = src[index];
 
@@ -103,7 +104,7 @@ void Recognizer::FindEdgesAndTangent()
 	texture_view<unorm, 2> edgeView(_edgeTex);
 	texture_view<float, 2> tangentView(_tangentTex);
 	texture_view<const unorm_4, 2> inputTex(_targetImage);
-	parallel_for_each(inputTex.extent, [inputTex, edgeView, tangentView, radius](index<2> index) restrict(amp)
+	parallel_for_each(_acc_view, inputTex.extent, [inputTex, edgeView, tangentView, radius](index<2> index) restrict(amp)
 	{
 		auto edge = SusanTest(inputTex, index, radius, 0.1f);
 		edgeView.set(index, edge);
@@ -191,37 +192,13 @@ EllipseParam Test(float height)
 
 task<void> Recognizer::FindEllipses()
 {
-	float x[2];
-	Solve(1, 0, -1, x);
-
 	float height = _targetImageExtent[0];
 
-	index<2> p1(24, 90), p2(66, 99);
-	float p1Tan(-0.427449489), p2Tan(1.000773973);
-	float tan[2];
-	
-	tan[0] = fast_math::atan(p1Tan) / 6.28f * 360.f;
-	tan[1] = fast_math::atan(p2Tan) / 6.28f * 360.f;
-
-	const auto pP1 = float_2(p1[1], height - p1[0]);
-	const auto pP2 = float_2(p2[1], height - p2[0]);
-	// 求交点(椭圆的极) T
-	const auto b1 = pP1.y - pP1.x * p1Tan;
-	const auto b2 = pP2.y - pP1.x * p2Tan;
-	const auto pTx = (b1 - b2) / (p2Tan - p1Tan);
-	const auto pT = float_2(pTx, pTx * p1Tan + b1);
-	// P1P2 的中点 M
-	const auto pM = (pP1 + pP2) / 2.f;
-	// MT 的中点 G
-	const auto pG = (pM + pT) / 2.f;
-
-	const auto idxPT = index<2>(height - pT.y, pT.x);
-
-	array<uint, 2> edgePointsCount(1, 1, accelerator().default_view, access_type_read);
-	array<index<2>, 2> edgePositions(_targetImageExtent);
+	array<uint, 2> edgePointsCount(1, 1, _acc_view, access_type_read);
+	array<index<2>, 2> edgePositions(_targetImageExtent, _acc_view);
 	texture_view<const unorm, 2> edgeView(_edgeTex);
 
-	parallel_for_each(edgeView.extent, [&edgePointsCount, &edgePositions, edgeView](index<2> index) restrict(amp)
+	parallel_for_each(_acc_view, edgeView.extent, [&edgePointsCount, &edgePositions, edgeView](index<2> index) restrict(amp)
 	{
 		if (edgeView[index] != 0.f)
 		{
@@ -233,15 +210,16 @@ task<void> Recognizer::FindEllipses()
 	});
 
 	const auto edgeSize = extent<1>(edgePointsCount(0, 0));
-	const auto maxEllipses = edgeSize / 4;
+	const auto maxEllipses = edgeSize / 2;
 
 	typedef sobol_rng<1>::sobol_number<float> sobol_float_number;
-	sobol_rng_collection<sobol_rng<1>, 1> sc_rng(edgeSize, 1);
+	sobol_rng_collection<sobol_rng<1>, 1> sc_rng(_acc_view, extent<1>(500), 1);
 	concurrency::graphics::texture_view<const float, 2> tangentView(_tangentTex);
-	array<uint32_t, 1> fitsCount(1, accelerator().default_view, access_type_read);
-	array<EllipseParam, 1> ellipses(maxEllipses);
+	array<uint32_t, 1> fitsCount(1, _acc_view, access_type_read);
+	array<EllipsePoints, 1> points(maxEllipses, _acc_view, access_type_read);
+	array<EllipseParam, 1> ellipses(maxEllipses, _acc_view);
 
-	parallel_for_each(maxEllipses, [=, &edgePositions, &fitsCount, &ellipses](index<1> index) restrict(amp)
+	parallel_for_each(_acc_view, maxEllipses, [=, &edgePositions, &fitsCount, &points, &ellipses](index<1> index) restrict(amp)
 	{
 		const auto id1 = index[0];
 		const auto x1 = id1 % edgeView.extent[1];
@@ -257,10 +235,13 @@ task<void> Recognizer::FindEllipses()
 		const auto x2 = id2 % edgeView.extent[1];
 		const auto y2 = id2 / edgeView.extent[1];
 		const auto p2Index = edgePositions(y2, x2);
+		//FindEllipsePoints(p1Index, p2Index, tangentView[p1Index], tangentView[p2Index], edgeView, tangentView, fitsCount, points);
 		FitEllipse(p1Index, p2Index, tangentView[p1Index], tangentView[p2Index], edgeView, tangentView, fitsCount, ellipses);
 	});
+	const auto ellipseCount = fitsCount(0);
+	auto p = points.data();
 
-	parallel_for_each(edgeSize, [=, &fitsCount, &ellipses, &edgePositions](index<1> index)restrict(amp)
+	parallel_for_each(_acc_view, edgeSize, [=, &fitsCount, &ellipses, &edgePositions](index<1> index)restrict(amp)
 	{
 		const auto id1 = index[0];
 		const auto x1 = id1 % edgeView.extent[1];
@@ -276,7 +257,6 @@ task<void> Recognizer::FindEllipses()
 		}
 	});
 
-	const auto ellipseCount = fitsCount(0);
 	if (ellipseCount)
 	{
 		std::vector<EllipseParam> ellipsesSort(ellipseCount);
@@ -286,22 +266,25 @@ task<void> Recognizer::FindEllipses()
 			return left.rank > right.rank;
 		});
 		std::vector<EllipseParam> ellipsesFit;
-		const float lambda = 0.2f;
+		const float lambda = 0.5f;
 		for (auto&& it : ellipsesSort)
 		{
-			auto min = lambda*3.14f * (1.5f * (it.a + it.b) - fast_math::sqrt(it.a * it.b));
+			auto min = lambda * 3.14f * (1.5f * (it.a + it.b) - fast_math::sqrt(it.a * it.b));
 			if (it.rank >= min)
 				ellipsesFit.emplace_back(it);
 		}
 
-		auto el = ellipsesSort.front();
-		array_view<uint, 2> outputTex(_outputTex);
-		parallel_for_each(_targetImageExtent, [=](index<2> index) restrict(amp)
+		for (auto&& el : ellipsesFit)
 		{
-			auto gray = OnEllipse(el, float_2(index[1], height - index[0]), 0.5f) ? 1.f : 0.f;
-			auto lastGray = uint(gray * 255);
-			outputTex[index] = uint(0xFF000000 | (lastGray << 16) | (lastGray << 8) | lastGray);
-		});
+			array_view<uint, 2> outputTex(_outputTex);
+			parallel_for_each(_acc_view, _targetImageExtent, [=](index<2> index) restrict(amp)
+			{
+				auto gray = OnEllipse(el, float_2(index[1], height - index[0]), 0.5f) ? 1.f : 0.f;
+				auto lastGray = uint(gray * 255);
+				if (lastGray)
+					outputTex[index] = uint(0xFF000000 | (lastGray << 16) | (lastGray << 8) | lastGray);
+			});
+		}
 	}
 
 	//float mat[5][6] = 
