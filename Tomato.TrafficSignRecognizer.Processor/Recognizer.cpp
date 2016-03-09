@@ -120,11 +120,11 @@ EllipseParam Test(float height)
 {
 	// 取 3 点为中心边长为 3 的 3 个正方形，共 27 点
 	const float_2 points[] = {
-		//float_2(44, height - 26),float_2(45, height - 26),float_2(44, height - 27),float_2(43, height - 27),float_2(46, height - 26),float_2(46, height - 25),
-		//float_2(46, height - 72),float_2(45, height - 72),float_2(47, height - 73),float_2(48, height - 73),
-		//float_2(27, height - 48),float_2(27, height - 47),float_2(27, height - 49),float_2(27, height - 46),
-		float_2(101, height - 49), float_2(27, height - 48),float_2(58, height - 22),float_2(87, height - 71),float_2(39, height - 69),
-		float_2(93, height - 33),
+		float_2(54, height - 75), float_2(53, height - 75),float_2(55, height - 75),
+		float_2(101, height - 50), float_2(101, height - 49),float_2(101, height - 51),
+		float_2(89, height - 68), float_2(90, height - 68),float_2(89, height - 69),float_2(88, height - 69),
+		float_2(97, height - 61), float_2(97, height - 60),float_2(98, height - 60),float_2(97, height - 61),float_2(96, height - 61),
+		float_2(75, height - 75), float_2(74, height - 75),float_2(76, height - 74),
 	};
 	static const graphics::uint maxPoints = sizeof(points) / sizeof(float_2);
 
@@ -193,6 +193,16 @@ EllipseParam Test(float height)
 task<void> Recognizer::FindEllipses()
 {
 	float height = _targetImageExtent[0];
+	//auto el = Test(height);
+
+	//array_view<uint, 2> outputTex(_outputTex);
+	//parallel_for_each(_acc_view, _targetImageExtent, [=](index<2> index) restrict(amp)
+	//{
+	//	auto gray = OnEllipse(el, float_2(index[1], height - index[0]), 0.5f) ? 1.f : 0.f;
+	//	auto lastGray = uint(gray * 255);
+	//	if (lastGray)
+	//		outputTex[index] = uint(0xFF000000 | (lastGray << 16) | (lastGray << 8) | lastGray);
+	//});
 
 	array<uint, 2> edgePointsCount(1, 1, _acc_view, access_type_read);
 	array<index<2>, 2> edgePositions(_targetImageExtent, _acc_view);

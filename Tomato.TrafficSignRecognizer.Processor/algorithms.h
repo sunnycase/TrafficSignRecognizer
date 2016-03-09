@@ -16,6 +16,8 @@ struct EllipseParam
 	float a, b;
 	uint32_t rank;
 	float lambda;
+	//concurrency::graphics::float_2 p1, p2, p3;
+	//concurrency::graphics::float_2 points[120];
 };
 
 struct EllipsePoints

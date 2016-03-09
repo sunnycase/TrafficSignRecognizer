@@ -101,6 +101,7 @@ void FindEllipsePoints(concurrency::index<2> p1, concurrency::index<2> p2, float
 	{
 		const auto MG = pG - pM;
 		const auto MGLen = fast_math::sqrt(MG.x * MG.x + MG.y * MG.y);
+		if (MGLen < 1.f) return;
 		// 查找次数
 		const auto times = int(MGLen / 0.5f);
 		const auto step = MG / (float)times;
@@ -127,6 +128,87 @@ void FindEllipsePoints(concurrency::index<2> p1, concurrency::index<2> p2, float
 					auto id = atomic_fetch_add(&fitsCount(0), 1);
 					ellipses(id) = { float_2(pP1.x, height - pP1.y), float_2(pP2.x, height - pP2.y), float_2(pP3.x, height - pP3.y),
 						p1p2Arctan / 6.28f * 360.f, fast_math::atan(p3Tan) / 6.28f * 360.f };
+				}
+			}
+		}
+	}
+}
+
+float_2 FixPoint(float_2 point) restrict(amp)
+{
+	return float_2(fast_math::ceil(point.x), fast_math::ceil(point.y));
+}
+
+bool FindPoint(float_2 p1, float_2 p2, const texture_view<const unorm, 2>& edgeView, float_2& point) restrict(amp)
+{
+	const float height = edgeView.extent[0];
+	const auto P1P2 = p2 - p1;
+	const auto P1P2Len = fast_math::sqrt(P1P2.x * P1P2.x + P1P2.y * P1P2.y);
+	if (P1P2Len < 1.f) return false;
+	// 查找次数
+	const auto times = int(P1P2Len / 1.f);
+	const auto step = P1P2 / (float)times;
+
+	for (int i = 0; i < times; i++)
+	{
+		const auto cntPoint = FixPoint(p1 + (step * i));
+		const auto P3Coord = coord(float_2(cntPoint.x, height - cntPoint.y), edgeView.extent);
+		if (P3Coord.x < 0 || P3Coord.y < 0 || P3Coord.x > 1.f || P3Coord.y > 1.f)
+			continue;
+		if (edgeView.sample<filter_point>(P3Coord) == 1.f)
+		{
+			point = cntPoint;
+			return true;
+		}
+	}
+	return false;
+}
+
+template<uint32_t N>
+void FindPoint(float_2(&points)[N], uint32_t& offset, float_2 p1, float_2 pM, float_2 p3, const texture_view<const unorm, 2>& edgeView) restrict(amp)
+{
+	const auto P1M = pM - p1;
+	const auto P1P3 = p3 - p1;
+
+	const auto P1MLen = fast_math::sqrt(P1M.x * P1M.x + P1M.y * P1M.y);
+	if (P1MLen < 1.f) return;
+	const auto P1P3Len = fast_math::sqrt(P1P3.x * P1P3.x + P1P3.y * P1P3.y);
+	if (P1P3Len < 1.f) return;
+	const auto times = int(fast_math::fmin(P1MLen, P1P3Len) / 1.5f);
+	const auto step1 = P1M / (float)times;
+	const auto step2 = P1P3 / (float)times;
+
+	for (int i = 0; i < times && offset < N; i++)
+	{
+		const auto cntP1M = FixPoint(p1 + (step1 * i));
+		const auto cntP1P3 = FixPoint(p1 + (step2 * i));
+		const auto cntQ = 2.f * cntP1P3 - cntP1M;
+		float_2 point;
+		if (FindPoint(cntP1P3, cntQ, edgeView, point))
+		{
+			const float_2 nearPoints[] =
+			{
+				point + float_2(-1, -1), point + float_2(+0, -1), point + float_2(+1, -1),
+				point + float_2(-1, +0), point + float_2(+0, +0), point + float_2(+1, +0),
+				point + float_2(-1, +1), point + float_2(+0, +1), point + float_2(+1, +1),
+			};
+			for (uint32_t k = 0; k < 9; k++)
+			{
+				point = nearPoints[k];
+				const auto pCoord = coord(float_2(point.x, edgeView.extent[0] - point.y), edgeView.extent);
+				if (edgeView.sample<filter_point>(pCoord) == 1.f)
+				{
+					bool alreadyHas = false;
+					for (uint32_t j = 0; j < offset; j++)
+					{
+						if (points[j] == point)
+						{
+							alreadyHas = true;
+							break;
+						}
+					}
+					if (!alreadyHas)
+						points[offset++] = point;
 				}
 			}
 		}
@@ -161,8 +243,9 @@ bool FitEllipse(concurrency::index<2> p1, concurrency::index<2> p2, float p1Tan,
 	{
 		const auto MG = pG - pM;
 		const auto MGLen = fast_math::sqrt(MG.x * MG.x + MG.y * MG.y);
+		if (MGLen < 1.f) return false;
 		// 查找次数
-		const auto times = int(MGLen / 0.5f);
+		const auto times = int(MGLen / 1.f);
 		const auto step = MG / (float)times;
 
 		const auto P1P2 = pP2 - pP1;
@@ -170,8 +253,8 @@ bool FitEllipse(concurrency::index<2> p1, concurrency::index<2> p2, float p1Tan,
 
 		for (int i = 0; i < times; i++)
 		{
-			const auto cntP3 = pM + (step * i);
-			const auto P3Coord = coord(float_2(fast_math::ceil(cntP3.x), fast_math::ceil(height - cntP3.y)), edgeView.extent);
+			const auto cntP3 = FixPoint(pM + (step * i));
+			const auto P3Coord = coord(float_2(cntP3.x, height - cntP3.y), edgeView.extent);
 			// 如果 T 点在图外则无法判断
 			if (P3Coord.x < 0 || P3Coord.y < 0 || P3Coord.x > 1.f || P3Coord.y > 1.f)
 				continue;
@@ -186,43 +269,32 @@ bool FitEllipse(concurrency::index<2> p1, concurrency::index<2> p2, float p1Tan,
 					pP3 = cntP3;
 					{
 						// 取 3 点为中心边长为 3 的 3 个正方形，共 27 点
-						const float_2 points[] = {
-							pP1 + float_2(-1, -1), pP1 + float_2(0, -1), pP1 + float_2(1, -1),
-							pP1 + float_2(-1, 0),  pP1,					pP1 + float_2(1, 0),
-							pP1 + float_2(-1, 1),  pP1 + float_2(0, 1),  pP1 + float_2(1, 1),
+						static const graphics::uint maxPoints = 120;
+						float_2 points[maxPoints];
+						points[0] = pP1;
+						points[1] = pP2;
+						points[2] = pP3;
+						uint32_t rows = 3;
+						FindPoint(points, rows, pP1, pM, pP3, edgeView);
+						FindPoint(points, rows, pP2, pM, pP3, edgeView);
 
-							pP2 + float_2(-1, -1), pP2 + float_2(0, -1), pP2 + float_2(1, -1),
-							pP2 + float_2(-1, 0),  pP2,					pP2 + float_2(1, 0),
-							pP2 + float_2(-1, 1),  pP2 + float_2(0, 1),  pP2 + float_2(1, 1),
-
-							pP3 + float_2(-1, -1), pP3 + float_2(0, -1), pP3 + float_2(1, -1),
-							pP3 + float_2(-1, 0),  pP3,					pP3 + float_2(1, 0),
-							pP3 + float_2(-1, 1),  pP3 + float_2(0, 1),  pP3 + float_2(1, 1),
-						};
-						static const graphics::uint maxPoints = sizeof(points) / sizeof(float_2);
-
-						uint32_t rows = 0;
 						float U[maxPoints][5];
 						float UT[5][maxPoints];
-						for (uint32_t i = 0; i < maxPoints; i++)
+						for (uint32_t i = 0; i < rows; i++)
 						{
-							const auto point = points[i];
-							if (edgeView.sample<filter_point>(coord(float_2(point.x, height - point.y), edgeView.extent)) == 1.f)
-							{
-								// x² xy y² x y
-								U[rows][0] = point.x * point.x;
-								U[rows][1] = point.x * point.y;
-								U[rows][2] = point.y * point.y;
-								U[rows][3] = point.x;
-								U[rows][4] = point.y;
+							const auto& point = points[i];
+							// x² xy y² x y
+							U[i][0] = point.x * point.x;
+							U[i][1] = point.x * point.y;
+							U[i][2] = point.y * point.y;
+							U[i][3] = point.x;
+							U[i][4] = point.y;
 
-								UT[0][rows] = U[rows][0];
-								UT[1][rows] = U[rows][1];
-								UT[2][rows] = U[rows][2];
-								UT[3][rows] = U[rows][3];
-								UT[4][rows] = U[rows][4];
-								rows++;
-							}
+							UT[0][i] = U[i][0];
+							UT[1][i] = U[i][1];
+							UT[2][i] = U[i][2];
+							UT[3][i] = U[i][3];
+							UT[4][i] = U[i][4];
 						}
 
 						// UT x U 形成 5 x 5 矩阵
@@ -260,9 +332,14 @@ bool FitEllipse(concurrency::index<2> p1, concurrency::index<2> p2, float p1Tan,
 									ellipse.b = fast_math::sqrt((fast_math::pow((ellipse.E - ellipse.B * ellipse.D / (2 * ellipse.A)), 2)
 										/ (4 * ellipse.C - ellipse.B * ellipse.B / ellipse.A) - F + ellipse.D *ellipse.D / (4 * ellipse.A))
 										/ (ellipse.C - ellipse.B * ellipse.B / (4 * ellipse.A)));
-
+									//for (uint32_t i = 0; i < rows; i++)
+									//	ellipse.points[i] = float_2(points[i].x, height - points[i].y);
+									//ellipse.p1 = float_2(pP1.x, height - pP1.y);
+									//ellipse.p2 = float_2(pP2.x, height - pP2.y);
+									//ellipse.p3 = float_2(pP3.x, height - pP3.y);
 									auto id = atomic_fetch_add(&fitsCount(0), 1);
 									ellipses(id) = ellipse;
+									break;
 								}
 							}
 						}
@@ -276,7 +353,7 @@ bool FitEllipse(concurrency::index<2> p1, concurrency::index<2> p2, float p1Tan,
 
 concurrency::graphics::float_2 coord(concurrency::graphics::float_2 point, const concurrency::extent<2>& extent) restrict(cpu, amp)
 {
-	return float_2(point.x / extent[1], point.y / extent[0]);
+	return float_2((point.x + 0.5f) / (float)extent[1], (point.y + 0.5f) / (float)extent[0]);
 }
 
 bool Solve(float(&mat)[5][6]) restrict(cpu, amp)
