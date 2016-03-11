@@ -55,6 +55,35 @@ concurrency::graphics::unorm SusanTest(const texture_view<const unorm_4, 2>& ima
 	return unorm(same < (total / 2) ? 1.f : 0.f);
 }
 
+concurrency::graphics::unorm SusanTest(const texture_view<const unorm, 2>& image, index<2> index, unsigned int radius, float threshold) restrict(amp)
+{
+	// 转化为灰度图
+	float gray = image[index];
+
+	float sum = 0.f;
+	int same = 0, total = 0;
+	// 圆扫描线 x = n
+	auto maxY = (int)radius;
+	for (int y = -maxY; y <= maxY; y++)
+	{
+		const auto x² = float(radius * radius - y * y);
+		const auto x1 = fast_math::sqrt(x²);
+		const auto x2 = -x1;
+
+		const auto coordY = float(index[0] + y) / (float)image.extent[0];
+		for (float x = x2; x <= x1; x += 0.5f)
+		{
+			const auto coordX = float(index[1] + x) / (float)image.extent[1];
+			float theGray = image.sample(float_2(coordX, coordY));
+			sum += theGray;
+			if (fast_math::fabs(theGray - gray) <= threshold)
+				same++;
+			total++;
+		}
+	}
+	return unorm(same < (total / 2) ? 1.f : 0.f);
+}
+
 float CalculateTangent(const concurrency::graphics::texture_view<const concurrency::graphics::unorm_4, 2>& image, concurrency::index<2> index) restrict(amp)
 {
 	float a[9];
@@ -68,6 +97,25 @@ float CalculateTangent(const concurrency::graphics::texture_view<const concurren
 	a[6] = Grayscale(image.sample(float_2(float(index[1] - 1) / (float)image.extent[1], float(index[0] + 1) / (float)image.extent[0])));
 	a[7] = Grayscale(image.sample(float_2(float(index[1]) / (float)image.extent[1], float(index[0] + 1) / (float)image.extent[0])));
 	a[8] = Grayscale(image.sample(float_2(float(index[1] + 1) / (float)image.extent[1], float(index[0] + 1) / (float)image.extent[0])));
+
+	auto Gx = (a[6] + 2 * a[7] + a[8]) - (a[0] + 2 * a[1] + a[2]);
+	auto Gy = (a[2] + 2 * a[5] + a[8]) - (a[0] + 2 * a[3] + a[6]);
+	return Gy / Gx;
+}
+
+float CalculateTangent(const concurrency::graphics::texture_view<const concurrency::graphics::unorm, 2>& image, concurrency::index<2> index) restrict(amp)
+{
+	float a[9];
+	a[0] = image.sample(float_2(float(index[1] - 1) / (float)image.extent[1], float(index[0] - 1) / (float)image.extent[0]));
+	a[1] = image.sample(float_2(float(index[1]) / (float)image.extent[1], float(index[0] - 1) / (float)image.extent[0]));
+	a[2] = image.sample(float_2(float(index[1] + 1) / (float)image.extent[1], float(index[0] - 1) / (float)image.extent[0]));
+
+	a[3] = image.sample(float_2(float(index[1] - 1) / (float)image.extent[1], float(index[0]) / (float)image.extent[0]));
+	a[5] = image.sample(float_2(float(index[1] + 1) / (float)image.extent[1], float(index[0]) / (float)image.extent[0]));
+
+	a[6] = image.sample(float_2(float(index[1] - 1) / (float)image.extent[1], float(index[0] + 1) / (float)image.extent[0]));
+	a[7] = image.sample(float_2(float(index[1]) / (float)image.extent[1], float(index[0] + 1) / (float)image.extent[0]));
+	a[8] = image.sample(float_2(float(index[1] + 1) / (float)image.extent[1], float(index[0] + 1) / (float)image.extent[0]));
 
 	auto Gx = (a[6] + 2 * a[7] + a[8]) - (a[0] + 2 * a[1] + a[2]);
 	auto Gy = (a[2] + 2 * a[5] + a[8]) - (a[0] + 2 * a[3] + a[6]);
@@ -128,6 +176,7 @@ void FindEllipsePoints(concurrency::index<2> p1, concurrency::index<2> p2, float
 					auto id = atomic_fetch_add(&fitsCount(0), 1);
 					ellipses(id) = { float_2(pP1.x, height - pP1.y), float_2(pP2.x, height - pP2.y), float_2(pP3.x, height - pP3.y),
 						p1p2Arctan / 6.28f * 360.f, fast_math::atan(p3Tan) / 6.28f * 360.f };
+					break;
 				}
 			}
 		}
@@ -405,6 +454,19 @@ bool OnEllipse(const EllipseParam & ellipse, concurrency::graphics::float_2 poin
 	{
 		if (fast_math::fabs(point.y - y[0]) <= threhold) return true;
 		if (fast_math::fabs(point.y - y[1]) <= threhold) return true;
+	}
+	return false;
+}
+
+bool IsRed(concurrency::graphics::unorm_4 pixel) restrict(cpu, amp)
+{
+	const auto y = Grayscale(pixel) * 255.f;
+	const auto u = 0.436f * (pixel.b * 255.f - y) / (1.f - 0.114) + 128.f;
+	const auto v = 0.615f * (pixel.r * 255.f - y) / (1.f - 0.299) + 128.f;
+	if (y < 120)
+	{
+		if (v - u > 30)
+			return true;
 	}
 	return false;
 }

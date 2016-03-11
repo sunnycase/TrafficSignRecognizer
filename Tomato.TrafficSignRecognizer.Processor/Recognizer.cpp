@@ -21,7 +21,8 @@ Recognizer::Recognizer(unsigned int width, unsigned int height)
 	:_targetImageExtent(height, width),
 	_acc_view(concurrency::direct3d::create_accelerator_view(accelerator(), true)),
 	_targetImage(_targetImageExtent, 16U, _acc_view), _outputTex(_targetImageExtent, _acc_view),
-	_edgeTex(_targetImageExtent, 8, _acc_view), _tangentTex(_targetImageExtent, 32, _acc_view)
+	_edgeTex(_targetImageExtent, 8, _acc_view), _tangentTex(_targetImageExtent, 32, _acc_view),
+	_redTex(_targetImageExtent, 8, _acc_view)
 {
 
 }
@@ -82,19 +83,50 @@ concurrency::task<void> Recognizer::PrepareTargetImage(BitmapFrame ^ frame)
 
 concurrency::task<void> Recognizer::FindContours()
 {
+	//FindEdgesAndTangent();
+	//texture_view<const unorm, 2> edges(_edgeTex);
+	//texture_view<const unorm_4, 2> input(_targetImage);
+
+	AbsorbRedTexels();
 	FindEdgesAndTangent();
+
+	texture_view<const unorm, 2> redTex(_redTex);
 	texture_view<const unorm, 2> edges(_edgeTex);
 	texture_view<const float, 2> tangents(_tangentTex);
 	array_view<uint, 2> outputTex(_outputTex);
 
 	return FindEllipses().then([=]
 	{
-		//parallel_for_each(_targetImageExtent, [edges, tangents, outputTex](index<2> index) restrict(amp)
-		//{
-		//	auto gray = fast_math::fabs(fast_math::sin(fast_math::atan(tangents[index])));
-		//	auto lastGray = uint(gray * 255);
-		//	outputTex[index] = uint(0xFF000000 | (lastGray << 16) | (lastGray << 8) | lastGray);
-		//});
+		parallel_for_each(_acc_view, _targetImageExtent, [outputTex, tangents, edges](index<2> index) restrict(amp)
+		{
+			const auto gray = fast_math::sin(fast_math::atan(tangents[index]));
+			if (gray < 0)
+			{
+				auto lastGray = uint(-gray * 255);
+				outputTex[index] = uint(0xFF0000FF | (lastGray << 16));
+			}
+			else if (gray > 0)
+			{
+				auto lastGray = uint(gray * 255);
+				outputTex[index] = uint(0xFF0000FF | (lastGray << 8));
+			}
+			//const auto r = input[index].r * 255.f;
+			//const auto g = input[index].g * 255.f;
+			//const auto b = input[index].b * 255.f;
+			//if (((g - r) / r >= 1.f) && (g / b >= 1.f) && (g - b <= 40))
+			//{
+			//	outputTex[index] = uint(0xFF000000);
+			//}
+			//else
+			//{
+			//	if (r - g > 40 && r - b > 50)
+			//	{
+			//		outputTex[index] = uint(0xFFFF0000);
+			//	}
+			//	else
+			//		outputTex[index] = uint(0xFF000000);
+			//}
+		});
 	});
 }
 
@@ -103,15 +135,71 @@ void Recognizer::FindEdgesAndTangent()
 	uint radius = 3;
 	texture_view<unorm, 2> edgeView(_edgeTex);
 	texture_view<float, 2> tangentView(_tangentTex);
+	texture_view<const unorm, 2> redTex(_redTex);
 	texture_view<const unorm_4, 2> inputTex(_targetImage);
-	parallel_for_each(_acc_view, inputTex.extent, [inputTex, edgeView, tangentView, radius](index<2> index) restrict(amp)
+	parallel_for_each(_acc_view, redTex.extent, [redTex, edgeView, inputTex, tangentView, radius](index<2> index) restrict(amp)
 	{
-		auto edge = SusanTest(inputTex, index, radius, 0.1f);
+		auto edge = SusanTest(redTex, index, radius, 0.1f);
 		edgeView.set(index, edge);
 
 		if (edge > 0.f)
-			tangentView.set(index, CalculateTangent(inputTex, index));
+			tangentView.set(index, CalculateTangent(redTex, index));
 	});
+}
+
+void Recognizer::AbsorbRedTexels()
+{
+	texture_view<const unorm_4, 2> input(_targetImage);
+	texture_view<unorm, 2> redTex(_redTex);
+
+	parallel_for_each(_acc_view, _targetImageExtent, [input, redTex](index<2> index) restrict(amp)
+	{
+		const float_2 p(index[1] + 0.5f, index[0] + 0.5f);
+		const float_2 points[] = {
+			p + float_2(-1, -1),
+			p + float_2(+0, -1),
+			p + float_2(+1, -1),
+
+			p + float_2(-1, +0),
+			p + float_2(+0, +0),
+			p + float_2(+1, +0),
+
+			p + float_2(-1, +1),
+			p + float_2(+0, +1),
+			p + float_2(+1, +1)
+		};
+		uint32_t hasCount = 0;
+		for (auto&& point : points)
+		{
+			if (IsRed(input.sample<filter_point>(coord(point, input.extent))))
+				if (++hasCount >= 5)
+				{
+					redTex.set(index, unorm(1.f));
+					break;
+				}
+		}
+	});
+
+	texture_view<const unorm, 2> redReader(_redTex);
+	texture<unorm, 2> tmpTex(_targetImageExtent, 8, _acc_view);
+	texture_view<unorm, 2> tmpWriter(tmpTex);
+	parallel_for_each(_acc_view, _targetImageExtent, [tmpWriter, redReader](index<2> index) restrict(amp)
+	{
+		const float_2 p(index[1] + 0.5f, index[0] + 0.5f);
+		if (redReader.sample<filter_point>(coord(p, redReader.extent)) == 0.f)
+		{
+			if (redReader.sample<filter_point>(coord(p + float_2(-1, +0), redReader.extent)) != 0.f ||
+				redReader.sample<filter_point>(coord(p + float_2(+1, +0), redReader.extent)) != 0.f)
+				tmpWriter.set(index, unorm(1.f));
+			else if (redReader.sample<filter_point>(coord(p + float_2(+0, -1), redReader.extent)) != 0.f ||
+				redReader.sample<filter_point>(coord(p + float_2(+0, +1), redReader.extent)) != 0.f)
+				tmpWriter.set(index, unorm(1.f));
+		}
+		else
+			tmpWriter.set(index, unorm(1.f));
+	});
+
+	copy(tmpTex, _redTex);
 }
 
 #define F 1000.f
@@ -245,57 +333,58 @@ task<void> Recognizer::FindEllipses()
 		const auto x2 = id2 % edgeView.extent[1];
 		const auto y2 = id2 / edgeView.extent[1];
 		const auto p2Index = edgePositions(y2, x2);
-		//FindEllipsePoints(p1Index, p2Index, tangentView[p1Index], tangentView[p2Index], edgeView, tangentView, fitsCount, points);
-		FitEllipse(p1Index, p2Index, tangentView[p1Index], tangentView[p2Index], edgeView, tangentView, fitsCount, ellipses);
+		FindEllipsePoints(p1Index, p2Index, tangentView[p1Index], tangentView[p2Index], edgeView, tangentView, fitsCount, points);
+		//FitEllipse(p1Index, p2Index, tangentView[p1Index], tangentView[p2Index], edgeView, tangentView, fitsCount, ellipses);
 	});
 	const auto ellipseCount = fitsCount(0);
 	auto p = points.data();
+	p = nullptr;
 
-	parallel_for_each(_acc_view, edgeSize, [=, &fitsCount, &ellipses, &edgePositions](index<1> index)restrict(amp)
-	{
-		const auto id1 = index[0];
-		const auto x1 = id1 % edgeView.extent[1];
-		const auto y1 = id1 / edgeView.extent[1];
-		const auto p1 = edgePositions(y1, x1);
+	//parallel_for_each(_acc_view, edgeSize, [=, &fitsCount, &ellipses, &edgePositions](index<1> index)restrict(amp)
+	//{
+	//	const auto id1 = index[0];
+	//	const auto x1 = id1 % edgeView.extent[1];
+	//	const auto y1 = id1 / edgeView.extent[1];
+	//	const auto p1 = edgePositions(y1, x1);
 
-		const auto ellipseCount = fitsCount(0);
-		for (uint32_t i = 0; i < ellipseCount; i++)
-		{
-			auto& ellipse = ellipses(i);
-			if (OnEllipse(ellipse, float_2(p1[1], height - p1[0]), .5f))
-				atomic_fetch_add(&ellipse.rank, 1);
-		}
-	});
+	//	const auto ellipseCount = fitsCount(0);
+	//	for (uint32_t i = 0; i < ellipseCount; i++)
+	//	{
+	//		auto& ellipse = ellipses(i);
+	//		if (OnEllipse(ellipse, float_2(p1[1], height - p1[0]), .5f))
+	//			atomic_fetch_add(&ellipse.rank, 1);
+	//	}
+	//});
 
-	if (ellipseCount)
-	{
-		std::vector<EllipseParam> ellipsesSort(ellipseCount);
-		copy(ellipses.section(extent<1>(ellipseCount)), ellipsesSort.begin());
-		std::sort(ellipsesSort.begin(), ellipsesSort.end(), [](const EllipseParam& left, const EllipseParam& right)
-		{
-			return left.rank > right.rank;
-		});
-		std::vector<EllipseParam> ellipsesFit;
-		const float lambda = 0.5f;
-		for (auto&& it : ellipsesSort)
-		{
-			auto min = lambda * 3.14f * (1.5f * (it.a + it.b) - fast_math::sqrt(it.a * it.b));
-			if (it.rank >= min)
-				ellipsesFit.emplace_back(it);
-		}
+	//if (ellipseCount)
+	//{
+	//	std::vector<EllipseParam> ellipsesSort(ellipseCount);
+	//	copy(ellipses.section(extent<1>(ellipseCount)), ellipsesSort.begin());
+	//	std::sort(ellipsesSort.begin(), ellipsesSort.end(), [](const EllipseParam& left, const EllipseParam& right)
+	//	{
+	//		return left.rank > right.rank;
+	//	});
+	//	std::vector<EllipseParam> ellipsesFit;
+	//	const float lambda = 0.5f;
+	//	for (auto&& it : ellipsesSort)
+	//	{
+	//		auto min = lambda * 3.14f * (1.5f * (it.a + it.b) - fast_math::sqrt(it.a * it.b));
+	//		if (it.rank >= min)
+	//			ellipsesFit.emplace_back(it);
+	//	}
 
-		for (auto&& el : ellipsesFit)
-		{
-			array_view<uint, 2> outputTex(_outputTex);
-			parallel_for_each(_acc_view, _targetImageExtent, [=](index<2> index) restrict(amp)
-			{
-				auto gray = OnEllipse(el, float_2(index[1], height - index[0]), 0.5f) ? 1.f : 0.f;
-				auto lastGray = uint(gray * 255);
-				if (lastGray)
-					outputTex[index] = uint(0xFF000000 | (lastGray << 16) | (lastGray << 8) | lastGray);
-			});
-		}
-	}
+	//	for (auto&& el : ellipsesSort)
+	//	{
+	//		array_view<uint, 2> outputTex(_outputTex);
+	//		parallel_for_each(_acc_view, _targetImageExtent, [=](index<2> index) restrict(amp)
+	//		{
+	//			auto gray = OnEllipse(el, float_2(index[1], height - index[0]), 0.5f) ? 1.f : 0.f;
+	//			auto lastGray = uint(gray * 255);
+	//			if (lastGray)
+	//				outputTex[index] = uint(0xFF000000 | (lastGray << 16) | (lastGray << 8) | lastGray);
+	//		});
+	//	}
+	//}
 
 	//float mat[5][6] = 
 	//{
