@@ -7,6 +7,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Tomato.TrafficSignRecognize
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Tomato.TrafficSignRecognizer.Processor", "Tomato.TrafficSignRecognizer.Processor\Tomato.TrafficSignRecognizer.Processor.vcxproj", "{02716874-ECE0-47C7-8F7D-B2E875A2BD58}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "libsvm", "libsvm\libsvm.vcxproj", "{B168338B-45DE-48ED-A326-B799B536A681}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|ARM = Debug|ARM
@@ -47,6 +49,18 @@ Global
 		{02716874-ECE0-47C7-8F7D-B2E875A2BD58}.Release|x64.Build.0 = Release|x64
 		{02716874-ECE0-47C7-8F7D-B2E875A2BD58}.Release|x86.ActiveCfg = Release|Win32
 		{02716874-ECE0-47C7-8F7D-B2E875A2BD58}.Release|x86.Build.0 = Release|Win32
+		{B168338B-45DE-48ED-A326-B799B536A681}.Debug|ARM.ActiveCfg = Debug|ARM
+		{B168338B-45DE-48ED-A326-B799B536A681}.Debug|ARM.Build.0 = Debug|ARM
+		{B168338B-45DE-48ED-A326-B799B536A681}.Debug|x64.ActiveCfg = Debug|x64
+		{B168338B-45DE-48ED-A326-B799B536A681}.Debug|x64.Build.0 = Debug|x64
+		{B168338B-45DE-48ED-A326-B799B536A681}.Debug|x86.ActiveCfg = Debug|Win32
+		{B168338B-45DE-48ED-A326-B799B536A681}.Debug|x86.Build.0 = Debug|Win32
+		{B168338B-45DE-48ED-A326-B799B536A681}.Release|ARM.ActiveCfg = Release|ARM
+		{B168338B-45DE-48ED-A326-B799B536A681}.Release|ARM.Build.0 = Release|ARM
+		{B168338B-45DE-48ED-A326-B799B536A681}.Release|x64.ActiveCfg = Release|x64
+		{B168338B-45DE-48ED-A326-B799B536A681}.Release|x64.Build.0 = Release|x64
+		{B168338B-45DE-48ED-A326-B799B536A681}.Release|x86.ActiveCfg = Release|Win32
+		{B168338B-45DE-48ED-A326-B799B536A681}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

@@ -400,6 +400,76 @@ bool FitEllipse(concurrency::index<2> p1, concurrency::index<2> p2, float p1Tan,
 	return false;
 }
 
+bool FitEllipse(concurrency::graphics::float_2 (&points)[5], float width, float height, concurrency::array<uint32_t, 1>& fitsCount, concurrency::array<EllipseParam, 1>& ellipses) restrict(amp)
+{
+	float U[5][5];
+	float UT[5][5];
+	for (uint32_t i = 0; i < 5; i++)
+	{
+		const auto& point = points[i];
+		// x² xy y² x y
+		U[i][0] = point.x * point.x;
+		U[i][1] = point.x * point.y;
+		U[i][2] = point.y * point.y;
+		U[i][3] = point.x;
+		U[i][4] = point.y;
+
+		UT[0][i] = U[i][0];
+		UT[1][i] = U[i][1];
+		UT[2][i] = U[i][2];
+		UT[3][i] = U[i][3];
+		UT[4][i] = U[i][4];
+	}
+
+	// UT x U 形成 5 x 5 矩阵
+	// UT x V 形成 5 x 1 矩阵
+	float mat[5][5 + 1];
+	for (uint32_t i = 0; i < 5; i++)
+	{
+		for (uint32_t j = 0; j < 5; j++)
+		{
+			float sum = 0;
+			for (uint32_t k = 0; k < 5; k++)
+				sum += UT[i][k] * U[k][j];
+			mat[i][j] = sum;
+		}
+		float sum = 0;
+		for (uint32_t k = 0; k < 5; k++)
+			sum += UT[i][k] * -F;
+		mat[i][5] = sum;
+	}
+	if (auto solved = Solve(mat))
+	{
+		EllipseParam ellipse{ mat[0][5], mat[1][5], mat[2][5], mat[3][5], mat[4][5] };
+		// 椭圆判别式 B² - 4AC < 0
+		auto value = ellipse.B * ellipse.B - 4.f * ellipse.A * ellipse.C;
+		if (value < 0.f)
+		{
+			ellipse.y = height - -(ellipse.E - ellipse.B * ellipse.D / (2 * ellipse.A))
+				/ (2 * ellipse.C - ellipse.B * ellipse.B / (2 * ellipse.A));
+			ellipse.x = -(ellipse.B * ellipse.y + ellipse.D) / (2 * ellipse.A);
+			if (ellipse.x > 0.f && ellipse.x < width &&
+				ellipse.y > 0.f && ellipse.y < height)
+			{
+				ellipse.a = fast_math::sqrt((fast_math::pow((ellipse.E - ellipse.B * ellipse.D / (2 * ellipse.A)), 2)
+					/ (4 * ellipse.C - ellipse.B * ellipse.B / ellipse.A) - F + ellipse.D *ellipse.D / (4 * ellipse.A)) / ellipse.A);
+				ellipse.b = fast_math::sqrt((fast_math::pow((ellipse.E - ellipse.B * ellipse.D / (2 * ellipse.A)), 2)
+					/ (4 * ellipse.C - ellipse.B * ellipse.B / ellipse.A) - F + ellipse.D *ellipse.D / (4 * ellipse.A))
+					/ (ellipse.C - ellipse.B * ellipse.B / (4 * ellipse.A)));
+				//for (uint32_t i = 0; i < rows; i++)
+				//	ellipse.points[i] = float_2(points[i].x, height - points[i].y);
+				//ellipse.p1 = float_2(pP1.x, height - pP1.y);
+				//ellipse.p2 = float_2(pP2.x, height - pP2.y);
+				//ellipse.p3 = float_2(pP3.x, height - pP3.y);
+				auto id = atomic_fetch_add(&fitsCount(0), 1);
+				ellipses(id) = ellipse;
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
 concurrency::graphics::float_2 coord(concurrency::graphics::float_2 point, const concurrency::extent<2>& extent) restrict(cpu, amp)
 {
 	return float_2((point.x + 0.5f) / (float)extent[1], (point.y + 0.5f) / (float)extent[0]);
@@ -456,6 +526,13 @@ bool OnEllipse(const EllipseParam & ellipse, concurrency::graphics::float_2 poin
 		if (fast_math::fabs(point.y - y[1]) <= threhold) return true;
 	}
 	return false;
+}
+
+bool InEllipse(const EllipseParam & ellipse, concurrency::graphics::float_2 point) restrict(cpu, amp)
+{
+	auto value = ellipse.A * point.x * point.x + ellipse.B * point.x * point.y + ellipse.C * point.y * point.y + ellipse.D * point.x +
+		ellipse.E * point.y + F;
+	return value <= 0.f;
 }
 
 bool IsRed(concurrency::graphics::unorm_4 pixel) restrict(cpu, amp)

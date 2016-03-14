@@ -34,9 +34,11 @@ float CalculateTangent(const concurrency::graphics::texture_view<const concurren
 float CalculateTangent(const concurrency::graphics::texture_view<const concurrency::graphics::unorm, 2>& image, concurrency::index<2> index) restrict(amp);
 void FindEllipsePoints(concurrency::index<2> p1, concurrency::index<2> p2, float p1Tan, float p2Tan, const concurrency::graphics::texture_view<const concurrency::graphics::unorm, 2>& edgeView, const concurrency::graphics::texture_view<const float, 2>& tangentView, concurrency::array<uint32_t, 1>& fitsCount, concurrency::array<EllipsePoints, 1>& ellipses) restrict(amp);
 bool FitEllipse(concurrency::index<2> p1, concurrency::index<2> p2, float p1Tan, float p2Tan, const concurrency::graphics::texture_view<const concurrency::graphics::unorm, 2>& edgeView, const concurrency::graphics::texture_view<const float, 2>& tangentView, concurrency::array<uint32_t, 1>& fitsCount, concurrency::array<EllipseParam, 1>& ellipses) restrict(amp);
+bool FitEllipse(concurrency::graphics::float_2 (&points)[5], float width, float height, concurrency::array<uint32_t, 1>& fitsCount, concurrency::array<EllipseParam, 1>& ellipses) restrict(amp);
 concurrency::graphics::float_2 coord(concurrency::graphics::float_2 point, const concurrency::extent<2>& extent) restrict(cpu, amp);
 bool Solve(float(&mat)[5][6]) restrict(cpu, amp);
 bool OnEllipse(const EllipseParam& ellipse, concurrency::graphics::float_2 point, float threhold) restrict(cpu,amp);
+bool InEllipse(const EllipseParam& ellipse, concurrency::graphics::float_2 point) restrict(cpu, amp);
 bool IsRed(concurrency::graphics::unorm_4 pixel) restrict(cpu, amp);
 
 // 解一元二次方程
