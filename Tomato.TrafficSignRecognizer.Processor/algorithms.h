@@ -14,6 +14,7 @@ struct EllipseParam
 	float A, B, C, D, E;
 	float x, y;
 	float a, b;
+	float theta;
 	uint32_t rank;
 	float lambda;
 	//concurrency::graphics::float_2 p1, p2, p3;

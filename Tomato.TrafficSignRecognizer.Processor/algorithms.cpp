@@ -445,22 +445,20 @@ bool FitEllipse(concurrency::graphics::float_2 (&points)[5], float width, float 
 		auto value = ellipse.B * ellipse.B - 4.f * ellipse.A * ellipse.C;
 		if (value < 0.f)
 		{
-			ellipse.y = height - -(ellipse.E - ellipse.B * ellipse.D / (2 * ellipse.A))
-				/ (2 * ellipse.C - ellipse.B * ellipse.B / (2 * ellipse.A));
-			ellipse.x = -(ellipse.B * ellipse.y + ellipse.D) / (2 * ellipse.A);
+			ellipse.y = (2.f * ellipse.A * ellipse.E - ellipse.B * ellipse.D) / (ellipse.B * ellipse.B - 4.f * ellipse.A * ellipse.C);
+			ellipse.x = (2.f * ellipse.C * ellipse.D - ellipse.B * ellipse.E) / (ellipse.B * ellipse.B - 4.f * ellipse.A * ellipse.C);
 			if (ellipse.x > 0.f && ellipse.x < width &&
 				ellipse.y > 0.f && ellipse.y < height)
 			{
-				ellipse.a = fast_math::sqrt((fast_math::pow((ellipse.E - ellipse.B * ellipse.D / (2 * ellipse.A)), 2)
-					/ (4 * ellipse.C - ellipse.B * ellipse.B / ellipse.A) - F + ellipse.D *ellipse.D / (4 * ellipse.A)) / ellipse.A);
-				ellipse.b = fast_math::sqrt((fast_math::pow((ellipse.E - ellipse.B * ellipse.D / (2 * ellipse.A)), 2)
-					/ (4 * ellipse.C - ellipse.B * ellipse.B / ellipse.A) - F + ellipse.D *ellipse.D / (4 * ellipse.A))
-					/ (ellipse.C - ellipse.B * ellipse.B / (4 * ellipse.A)));
-				//for (uint32_t i = 0; i < rows; i++)
-				//	ellipse.points[i] = float_2(points[i].x, height - points[i].y);
-				//ellipse.p1 = float_2(pP1.x, height - pP1.y);
-				//ellipse.p2 = float_2(pP2.x, height - pP2.y);
-				//ellipse.p3 = float_2(pP3.x, height - pP3.y);
+				ellipse.a = fast_math::sqrt(2.f * (
+					(ellipse.A * ellipse.E * ellipse.E - ellipse.B * ellipse.D * ellipse.E + ellipse.C * ellipse.D * ellipse.D) / (4.f * ellipse.A * ellipse.C - ellipse.B * ellipse.B) - F
+					) / (ellipse.A + ellipse.C - fast_math::sqrt(fast_math::pow(ellipse.A - ellipse.C, 2) + ellipse.B * ellipse.B)));
+				ellipse.b = fast_math::sqrt(2.f * (
+					(ellipse.A * ellipse.E * ellipse.E - ellipse.B * ellipse.D * ellipse.E + ellipse.C * ellipse.D * ellipse.D) / (4.f * ellipse.A * ellipse.C - ellipse.B * ellipse.B) - F
+					) / (ellipse.A + ellipse.C + fast_math::sqrt(fast_math::pow(ellipse.A - ellipse.C, 2) + ellipse.B * ellipse.B)));
+
+				ellipse.theta = fast_math::fabs(fast_math::atan(ellipse.B / (ellipse.A - ellipse.C)) / 2.f);
+				
 				auto id = atomic_fetch_add(&fitsCount(0), 1);
 				ellipses(id) = ellipse;
 				return true;

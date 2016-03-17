@@ -295,16 +295,24 @@ task<void> Recognizer::FindEllipses()
 			array_view<uint, 2> outputTex(_outputTex);
 			parallel_for_each(_acc_view, _targetImageExtent, [=](index<2> index) restrict(amp)
 			{
-				if (InEllipse(el, float_2(index[1], height - index[0])))
+				const float_2 pt(index[1], height - index[0]);
+				if (InEllipse(el, pt))
 				{
 					const uint r = inputTex[index].r * 255;
 					const uint g = inputTex[index].g * 255;
 					const uint b = inputTex[index].b * 255;
-					outputTex[index] = uint(0xFF000000 | (r << 16) | (g << 8) | b);
+
+					const float x = (pt.x - el.x);
+					const float y = (pt.y - el.y);
+					float x2 = x * fast_math::cos(-el.theta) - y * fast_math::sin(-el.theta);
+					float y2 = x * fast_math::sin(-el.theta) + y * fast_math::cos(-el.theta);
+					x2 = x2 / el.a * 50.f;
+					y2 = y2 / el.b * 50.f;
+					outputTex(height - (y2 + height / 2.f), x2 + inputTex.extent[1] / 2.f) = uint(0xFF000000 | (r << 16) | (g << 8) | b);
 				}
 			});
+			break;
 		}
 	}
-
 	return task_from_result();
 }
