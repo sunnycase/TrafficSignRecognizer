@@ -17,6 +17,8 @@ using namespace Windows::Foundation;
 using namespace Windows::Graphics::Imaging;
 using namespace WRL;
 
+static const uint32_t zero = 0;
+
 Recognizer::Recognizer(unsigned int width, unsigned int height)
 	:_targetImageExtent(height, width),
 	_acc_view(concurrency::direct3d::create_accelerator_view(accelerator(), true)),
@@ -206,7 +208,7 @@ task<void> Recognizer::FindEllipses()
 {
 	float height = _targetImageExtent[0];
 
-	array<uint, 2> edgePointsCount(1, 1, _acc_view, access_type_read);
+	array<uint, 1> edgePointsCount(1, &zero, _acc_view, access_type_read);
 	array<index<2>, 2> edgePositions(_targetImageExtent, _acc_view);
 	texture_view<const unorm, 2> edgeView(_edgeTex);
 
@@ -214,21 +216,21 @@ task<void> Recognizer::FindEllipses()
 	{
 		if (edgeView[index] != 0.f)
 		{
-			auto idx = atomic_fetch_add(&edgePointsCount(0, 0), 1);
+			auto idx = atomic_fetch_add(&edgePointsCount(0), 1);
 			auto x = idx % edgeView.extent[1];
 			auto y = idx / edgeView.extent[1];
 			edgePositions(y, x) = index;
 		}
 	});
 
-	const auto edgeSize = extent<1>(edgePointsCount(0, 0));
+	const auto edgeSize = extent<1>(edgePointsCount(0));
 	const auto maxEllipses = edgeSize * 100;
 
 	typedef sobol_rng<5>::sobol_number<float> sobol_float_number;
 	sobol_rng_collection<sobol_rng<5>, 1> sc_rng(_acc_view, maxEllipses, 1);
 	concurrency::graphics::texture_view<const float, 2> tangentView(_tangentTex);
-	array<uint32_t, 1> fitsCount(1, _acc_view, access_type_read);
-	array<EllipseParam, 1> ellipses(maxEllipses, _acc_view, access_type_read);
+	array<uint32_t, 1> fitsCount(1, &zero, _acc_view, access_type_read);
+	array<EllipseParam, 1> ellipses(maxEllipses, _acc_view);
 
 	parallel_for_each(_acc_view, maxEllipses, [=, &edgePositions, &fitsCount, &ellipses](index<1> idx) restrict(amp)
 	{
@@ -267,7 +269,8 @@ task<void> Recognizer::FindEllipses()
 		for (uint32_t i = 0; i < ellipseCount; i++)
 		{
 			auto& ellipse = ellipses(i);
-			if (OnEllipse(ellipse, float_2(p1[1], height - p1[0]), 0.8f))
+			const float_2 point(p1[1], height - p1[0]);
+			if (OnEllipse(ellipse, point, 0.8f))
 				atomic_fetch_add(&ellipse.rank, 1);
 		}
 	});
@@ -280,39 +283,143 @@ task<void> Recognizer::FindEllipses()
 		{
 			return left.rank > right.rank;
 		});
-		std::vector<EllipseParam> ellipsesFit;
+
+		_ellipsesFit.clear();
 		const float lambda = 0.6f;
 		for (auto&& it : ellipsesSort)
 		{
 			auto min = lambda * 3.14f * (1.5f * (it.a + it.b) - fast_math::sqrt(it.a * it.b));
 			if (it.a > 10.f && it.b > 10.f && it.rank >= min)
-				ellipsesFit.emplace_back(it);
+				_ellipsesFit.emplace_back(it);
 		}
 
-		for (auto&& el : ellipsesFit)
-		{
-			texture_view<const unorm_4, 2> inputTex(_targetImage);
-			array_view<uint, 2> outputTex(_outputTex);
-			parallel_for_each(_acc_view, _targetImageExtent, [=](index<2> index) restrict(amp)
-			{
-				const float_2 pt(index[1], height - index[0]);
-				if (InEllipse(el, pt))
-				{
-					const uint r = inputTex[index].r * 255;
-					const uint g = inputTex[index].g * 255;
-					const uint b = inputTex[index].b * 255;
+		FillCircleSignTargetsSource();
+		CalculateZernike();
 
-					const float x = (pt.x - el.x);
-					const float y = (pt.y - el.y);
-					float x2 = x * fast_math::cos(-el.theta) - y * fast_math::sin(-el.theta);
-					float y2 = x * fast_math::sin(-el.theta) + y * fast_math::cos(-el.theta);
-					x2 = x2 / el.a * 50.f;
-					y2 = y2 / el.b * 50.f;
-					outputTex(height - (y2 + height / 2.f), x2 + inputTex.extent[1] / 2.f) = uint(0xFF000000 | (r << 16) | (g << 8) | b);
-				}
-			});
-			break;
-		}
+		//for (auto&& el : _ellipsesFit)
+		//{
+		//	texture_view<const unorm_4, 2> inputTex(_targetImage);
+		//	array_view<uint, 2> outputTex(_outputTex);
+		//	array<uint32_t, 1> graySum(1, &zero, _acc_view);
+		//	parallel_for_each(_acc_view, _targetImageExtent, [=, &graySum](index<2> index) restrict(amp)
+		//	{
+		//		const float_2 pt(index[1], height - index[0]);
+		//		if (InEllipse(el, pt))
+		//		{
+		//			atomic_fetch_add(&graySum[0], Grayscale(inputTex[index]) * 255);
+		//		}
+		//	});
+		//	parallel_for_each(_acc_view, _targetImageExtent, [=, &graySum](index<2> index) restrict(amp)
+		//	{
+		//		const float threhold = graySum[0] / float(el.area) / 255.f;
+		//		const float_2 pt(index[1], height - index[0]);
+		//		if (InEllipse(el, pt))
+		//		{
+		//			const uint r = inputTex[index].r * 255;
+		//			const uint g = inputTex[index].g * 255;
+		//			const uint b = inputTex[index].b * 255;
+
+		//			const float x = (pt.x - el.x);
+		//			const float y = (pt.y - el.y);
+		//			float x2 = x * fast_math::cos(-el.theta) - y * fast_math::sin(-el.theta);
+		//			float y2 = x * fast_math::sin(-el.theta) + y * fast_math::cos(-el.theta);
+		//			x2 = x2 / el.a * 50.f;
+		//			y2 = y2 / el.b * 50.f;
+		//			if (Grayscale(inputTex[index]) < threhold)
+		//				outputTex(index) = uint(0xFFFFFFFF);
+		//			//outputTex(index) = uint(0xFF000000 | (r << 16) | (g << 8) | b);
+		//		}
+		//	});
+		//}
 	}
+
 	return task_from_result();
+}
+
+void Recognizer::FillCircleSignTargetsSource()
+{
+	float height = _targetImageExtent[0];
+	texture_view<const unorm_4, 2> inputTex(_targetImage);
+
+	_circleSignTargetsSource.clear();
+	for (auto&& el : _ellipsesFit)
+	{
+		array<UnitCirclePoint, 1> points(el.area, _acc_view);
+		array<uint32_t, 1> pointsCount(1, &zero, _acc_view, access_type_read);
+		array<uint32_t, 1> graySum(1, &zero, _acc_view);
+		parallel_for_each(_acc_view, _targetImageExtent, [=, &graySum](index<2> index) restrict(amp)
+		{
+			const float_2 pt(index[1], height - index[0]);
+			if (InEllipse(el, pt))
+				atomic_fetch_add(&graySum[0], Grayscale(inputTex[index]) * 255);
+		});
+
+		parallel_for_each(_acc_view, _targetImageExtent, [=, &points, &pointsCount, &graySum](index<2> index) restrict(amp)
+		{
+			const float threhold = graySum[0] / float(el.area) / 255.f / 1.5f;
+			const float_2 pt(index[1], height - index[0]);
+			if (InEllipse(el, pt))
+			{
+				const auto sum = float(atomic_fetch_add(&graySum[0], Grayscale(inputTex[index]) * 255));
+				if (Grayscale(inputTex[index]) < threhold)
+				{
+					const float_2 coord1(pt.x - el.x, pt.y - el.y);
+					float_2 coord2(coord1.x * fast_math::cos(-el.theta) - coord1.y * fast_math::sin(-el.theta),
+						coord1.x * fast_math::sin(-el.theta) + coord1.y * fast_math::cos(-el.theta));
+					coord2 /= float_2(el.a, el.b);
+
+					const auto id = atomic_fetch_add(&pointsCount[0], 1);
+					points[id] = { unorm(fast_math::sqrt(coord2.x * coord2.x + coord2.y * coord2.y)),
+								   fast_math::atan2(coord2.y, coord2.x) };
+				}
+			}
+		});
+		_circleSignTargetsSource.emplace_back(pointsCount[0], std::move(points), el.area);
+	}
+}
+
+static std::array<uint_2, 8> mnPairs = {
+	uint_2(2, 2),uint_2(3, 1),uint_2(3, 3),uint_2(4, 2),
+	uint_2(4, 4),uint_2(5, 1),uint_2(5, 3),uint_2(5, 5),
+};
+
+void Recognizer::CalculateZernike()
+{
+	circleSignZernikes.clear();
+	circleSignZernikes.resize(_circleSignTargetsSource.size());
+	size_t cntId = 0;
+	for (auto&& target : _circleSignTargetsSource)
+	{
+		const float area = target.area;
+		const auto pointsCount = extent<1>(target.pointsCount);
+		array_view<UnitCirclePoint, 1> pointsView(target.points);
+		array_view<uint, 2> outputTex(_outputTex);
+		array<float, 1> V(pointsCount, _acc_view), Vj(pointsCount, _acc_view);
+		for (size_t i = 0; i < mnPairs.size(); i++)
+		{
+			const auto p = mnPairs[i].x;
+			const int q = mnPairs[i].y;
+			parallel_for_each(_acc_view, pointsCount, [=, &V, &Vj](index<1> index) restrict(amp)
+			{
+				const auto point = pointsView[index];
+				auto r = ZernikeR(p, q, point.rho);
+				auto v = ZernikeV(r, q, point.theta);
+				V[index] = v.x;
+				Vj[index] = v.y;
+				/*const auto x = point.rho * fast_math::cos(point.theta) * 20.f + outputTex.extent[1] / 2.f;
+				const auto y = point.rho * fast_math::sin(point.theta) * 20.f + outputTex.extent[0] / 2.f;
+				outputTex(outputTex.extent[0] - y, x) = uint(0xFFFFFFFF);*/
+			});
+
+			const std::vector<float> cpuV(V), cpuVj(Vj);
+			concurrency::combinable<double> cbV, cbVj;
+			parallel_for_each(cpuV.begin(), cpuV.end(), [&](float value) {cbV.local() += value;});
+			parallel_for_each(cpuVj.begin(), cpuVj.end(), [&](float value) {cbVj.local() += value;});
+			const auto sV = cbV.combine(std::plus<double>()) * (2 * p + 2) / area;
+			const auto sVj = cbVj.combine(std::plus<double>()) * (2 * p + 2) / area;
+			const auto Z = sqrt(sV * sV + sVj * sVj);
+			circleSignZernikes[cntId][i] = { p, q, (float)Z };
+		}
+		cntId++;
+	}
 }

@@ -231,6 +231,7 @@
     <ClInclude Include="amprng\amp_sobol_rng.h" />
     <ClInclude Include="amprng\xxamp_sobol_rng.h" />
     <ClInclude Include="common.h" />
+    <ClInclude Include="models.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="platform.h" />
     <ClInclude Include="Recognizer.h" />

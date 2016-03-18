@@ -51,6 +51,9 @@
     <ClInclude Include="amprng\xxamp_sobol_rng.h">
       <Filter>头文件\amprng</Filter>
     </ClInclude>
+    <ClInclude Include="models.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />

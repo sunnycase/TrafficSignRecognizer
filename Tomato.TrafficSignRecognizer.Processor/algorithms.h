@@ -6,26 +6,9 @@
 #include "common.h"
 #include <amp.h>
 #include <amp_graphics.h>
+#include "models.h"
 
 DEFINE_NS_TSR_PRCSR
-
-struct EllipseParam
-{
-	float A, B, C, D, E;
-	float x, y;
-	float a, b;
-	float theta;
-	uint32_t rank;
-	float lambda;
-	//concurrency::graphics::float_2 p1, p2, p3;
-	//concurrency::graphics::float_2 points[120];
-};
-
-struct EllipsePoints
-{
-	concurrency::graphics::float_2 p1, p2, p3;
-	float rad1, rad2;
-};
 
 concurrency::graphics::unorm Grayscale(const concurrency::graphics::unorm_4& color) restrict(cpu, amp);
 concurrency::graphics::unorm Threshold(concurrency::graphics::unorm color, float threshold) restrict(cpu, amp);
@@ -41,6 +24,10 @@ bool Solve(float(&mat)[5][6]) restrict(cpu, amp);
 bool OnEllipse(const EllipseParam& ellipse, concurrency::graphics::float_2 point, float threhold) restrict(cpu,amp);
 bool InEllipse(const EllipseParam& ellipse, concurrency::graphics::float_2 point) restrict(cpu, amp);
 bool IsRed(concurrency::graphics::unorm_4 pixel) restrict(cpu, amp);
+float ZernikeR(uint32_t p, int q, float rho) restrict(cpu, amp);
+concurrency::graphics::float_2 ZernikeV(float r, int q, float theta) restrict(cpu, amp);
+uint32_t factorial(uint32_t n) restrict(cpu, amp);
+int powneg1(uint32_t n) restrict(cpu, amp);
 
 // 解一元二次方程
 bool Solve(float a, float b, float c, float(&x)[2]) restrict(cpu, amp);
@@ -76,6 +63,12 @@ void sort(T(&arr)[N]) restrict(cpu, amp)
 				swap(arr[k], arr[k + 1]);
 		}
 	}
+}
+
+template<typename T>
+T abs(T value) restrict(cpu, amp)
+{
+	return value < 0 ? -value : value;
 }
 
 END_NS_TSR_PRCSR

@@ -458,6 +458,8 @@ bool FitEllipse(concurrency::graphics::float_2 (&points)[5], float width, float 
 					) / (ellipse.A + ellipse.C + fast_math::sqrt(fast_math::pow(ellipse.A - ellipse.C, 2) + ellipse.B * ellipse.B)));
 
 				ellipse.theta = fast_math::fabs(fast_math::atan(ellipse.B / (ellipse.A - ellipse.C)) / 2.f);
+				ellipse.area = uint32_t(fast_math::ceil(ellipse.a * ellipse.b * 3.1415f));
+				ellipse.rank = 0;
 				
 				auto id = atomic_fetch_add(&fitsCount(0), 1);
 				ellipses(id) = ellipse;
@@ -544,6 +546,45 @@ bool IsRed(concurrency::graphics::unorm_4 pixel) restrict(cpu, amp)
 			return true;
 	}
 	return false;
+}
+
+float ZernikeR(uint32_t p, int q, float rho) restrict(cpu, amp)
+{
+	const auto sEnd = (p - uint32_t(abs(q))) / 2;
+
+	float r = 0.f;
+	for (uint32_t s = 0; s <= sEnd; s++)
+		r += powneg1(s) * (float)factorial(p - s) /
+		float(factorial(s) * factorial((p + abs(q)) / 2 - s) * factorial((p - abs(q)) / 2 - s)) *
+		fast_math::pow(rho, int(p - 2 * s));
+	return r;
+}
+
+concurrency::graphics::float_2 ZernikeV(float r, int q, float theta) restrict(cpu, amp)
+{
+	return float_2(r * fast_math::cos(q * theta),
+		r * fast_math::sin(q * theta));
+}
+
+uint32_t factorial(uint32_t n) restrict(cpu, amp)
+{
+	if (n <= 10)
+	{
+		const uint32_t factorials[11] = { 1 , 1 , 2 , 6 , 24 , 120 , 720 , 5040 , 40320 , 362880 , 39916800 };
+		return factorials[n];
+	}
+
+	uint32_t m = 1;
+	for (uint32_t i = 2; i <= n; i++)
+	{
+		m *= i;
+	}
+	return m;
+}
+
+int powneg1(uint32_t n) restrict(cpu, amp)
+{
+	return (n % 2) ? -1 : 1;
 }
 
 bool Solve(float a, float b, float c, float(&x)[2]) restrict(cpu, amp)

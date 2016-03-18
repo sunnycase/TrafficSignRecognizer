@@ -2,6 +2,6 @@
 #define NOMINMAX
 
 #include <collection.h>
-#include <ppltasks.h>
+#include <ppl.h>
 #include <amp.h>
 #include <amp_graphics.h>

@@ -7,6 +7,7 @@
 #include <amp.h>
 #include <amp_graphics.h>
 #include <ppltasks.h>
+#include "models.h"
 #pragma once
 
 DEFINE_NS_TSR_PRCSR
@@ -25,6 +26,9 @@ private:
 	void FindEdgesAndTangent();
 	void AbsorbRedTexels();
 	concurrency::task<void> FindEllipses();
+	void FillCircleSignTargetsSource();
+	void CalculateZernike();
+
 private:
 	concurrency::extent<2> _targetImageExtent;
 	concurrency::accelerator_view _acc_view;
@@ -33,6 +37,9 @@ private:
 	concurrency::graphics::texture<concurrency::graphics::unorm, 2> _edgeTex;
 	concurrency::graphics::texture<concurrency::graphics::unorm, 2> _redTex;
 	concurrency::graphics::texture<float, 2> _tangentTex;
+	std::vector<EllipseParam> _ellipsesFit;
+	std::vector<ZernikeDataSource> _circleSignTargetsSource;
+	std::vector<std::array<ZernikeResult, 8>> circleSignZernikes;
 };
 
 END_NS_TSR_PRCSR
