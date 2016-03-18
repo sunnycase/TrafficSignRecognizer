@@ -406,9 +406,9 @@ void Recognizer::CalculateZernike()
 				auto v = ZernikeV(r, q, point.theta);
 				V[index] = v.x;
 				Vj[index] = v.y;
-				/*const auto x = point.rho * fast_math::cos(point.theta) * 20.f + outputTex.extent[1] / 2.f;
+				const auto x = point.rho * fast_math::cos(point.theta) * 20.f + outputTex.extent[1] / 2.f;
 				const auto y = point.rho * fast_math::sin(point.theta) * 20.f + outputTex.extent[0] / 2.f;
-				outputTex(outputTex.extent[0] - y, x) = uint(0xFFFFFFFF);*/
+				outputTex(outputTex.extent[0] - y, x) = uint(0xFFFFFFFF);
 			});
 
 			const std::vector<float> cpuV(V), cpuVj(Vj);
@@ -420,6 +420,7 @@ void Recognizer::CalculateZernike()
 			const auto Z = sqrt(sV * sV + sVj * sVj);
 			circleSignZernikes[cntId][i] = { p, q, (float)Z };
 		}
+		break;
 		cntId++;
 	}
 }
