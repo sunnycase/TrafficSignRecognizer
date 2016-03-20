@@ -20,13 +20,12 @@ void FindEllipsePoints(concurrency::index<2> p1, concurrency::index<2> p2, float
 bool FitEllipse(concurrency::index<2> p1, concurrency::index<2> p2, float p1Tan, float p2Tan, const concurrency::graphics::texture_view<const concurrency::graphics::unorm, 2>& edgeView, const concurrency::graphics::texture_view<const float, 2>& tangentView, concurrency::array<uint32_t, 1>& fitsCount, concurrency::array<EllipseParam, 1>& ellipses) restrict(amp);
 bool FitEllipse(concurrency::graphics::float_2 (&points)[5], float width, float height, concurrency::array<uint32_t, 1>& fitsCount, concurrency::array<EllipseParam, 1>& ellipses) restrict(amp);
 concurrency::graphics::float_2 coord(concurrency::graphics::float_2 point, const concurrency::extent<2>& extent) restrict(cpu, amp);
-bool Solve(float(&mat)[5][6]) restrict(cpu, amp);
 bool OnEllipse(const EllipseParam& ellipse, concurrency::graphics::float_2 point, float threhold) restrict(cpu,amp);
 bool InEllipse(const EllipseParam& ellipse, concurrency::graphics::float_2 point) restrict(cpu, amp);
 bool IsRed(concurrency::graphics::unorm_4 pixel) restrict(cpu, amp);
-float ZernikeR(uint32_t p, int q, float rho) restrict(cpu, amp);
-concurrency::graphics::float_2 ZernikeV(float r, int q, float theta) restrict(cpu, amp);
-uint32_t factorial(uint32_t n) restrict(cpu, amp);
+double ZernikeR(int p, int q, double rho) restrict(cpu, amp);
+concurrency::graphics::double_2 ZernikeV(double r, int q, double theta) restrict(cpu, amp);
+int factorial(uint32_t n) restrict(cpu, amp);
 int powneg1(uint32_t n) restrict(cpu, amp);
 
 // 解一元二次方程
@@ -69,6 +68,40 @@ template<typename T>
 T abs(T value) restrict(cpu, amp)
 {
 	return value < 0 ? -value : value;
+}
+
+template<typename T, uint32_t M, uint32_t N = M + 1>
+bool Solve(T(&mat)[M][N]) restrict(cpu, amp)
+{
+	for (int i = 0; i < M; i++)
+	{
+		bool find = false;
+		// 查找当前元的非零行
+		for (int j = i; j < M; j++)
+			if (mat[j][i] != 0)
+			{
+				const auto factor = mat[j][i];
+				for (int k = 0; k < N; k++)
+					mat[j][k] /= factor;
+				swap(mat[j], mat[i]);
+				find = true;
+				break;
+			}
+		// 都是 0 则无解
+		if (!find) return false;
+		// 消去其他当前元不为0的行
+		for (int j = 0; j < M; j++)
+		{
+			if (j != i && mat[j][i] != 0)
+			{
+				// 要减去的factor
+				const auto minusFactor = mat[j][i];
+				for (int k = 0; k < N; k++)
+					mat[j][k] -= mat[i][k] * minusFactor;
+			}
+		}
+	}
+	return true;
 }
 
 END_NS_TSR_PRCSR

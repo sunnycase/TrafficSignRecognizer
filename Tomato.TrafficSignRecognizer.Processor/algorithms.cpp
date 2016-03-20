@@ -475,40 +475,6 @@ concurrency::graphics::float_2 coord(concurrency::graphics::float_2 point, const
 	return float_2((point.x + 0.5f) / (float)extent[1], (point.y + 0.5f) / (float)extent[0]);
 }
 
-bool Solve(float(&mat)[5][6]) restrict(cpu, amp)
-{
-	const auto& a = mat[0];
-	for (int i = 0; i < 5; i++)
-	{
-		bool find = false;
-		// 查找当前元的非零行
-		for (int j = i; j < 5; j++)
-			if (mat[j][i] != 0)
-			{
-				const auto factor = mat[j][i];
-				for (int k = 0; k < 6; k++)
-					mat[j][k] /= factor;
-				swap(mat[j], mat[i]);
-				find = true;
-				break;
-			}
-		// 都是 0 则无解
-		if (!find) return false;
-		// 消去其他当前元不为0的行
-		for (int j = 0; j < 5; j++)
-		{
-			if (j != i && mat[j][i] != 0)
-			{
-				// 要减去的factor
-				const auto minusFactor = mat[j][i];
-				for (int k = 0; k < 6; k++)
-					mat[j][k] -= mat[i][k] * minusFactor;
-			}
-		}
-	}
-	return true;
-}
-
 bool OnEllipse(const EllipseParam & ellipse, concurrency::graphics::float_2 point, float threhold) restrict(cpu, amp)
 {
 	// x 方向交点 y = y0
@@ -548,33 +514,33 @@ bool IsRed(concurrency::graphics::unorm_4 pixel) restrict(cpu, amp)
 	return false;
 }
 
-float ZernikeR(uint32_t p, int q, float rho) restrict(cpu, amp)
+double ZernikeR(int p, int q, double rho) restrict(cpu, amp)
 {
-	const auto sEnd = (p - uint32_t(abs(q))) / 2;
+	const auto sEnd = (p - abs(q)) / 2;
 
-	float r = 0.f;
-	for (uint32_t s = 0; s <= sEnd; s++)
-		r += powneg1(s) * (float)factorial(p - s) /
+	double r = 0.0;
+	for (int s = 0; s <= sEnd; s++)
+		r += powneg1(s) * (double)factorial(p - s) /
 		float(factorial(s) * factorial((p + abs(q)) / 2 - s) * factorial((p - abs(q)) / 2 - s)) *
-		fast_math::pow(rho, int(p - 2 * s));
+		precise_math::pow(rho, p - 2 * s) * 255.0;
 	return r;
 }
 
-concurrency::graphics::float_2 ZernikeV(float r, int q, float theta) restrict(cpu, amp)
+concurrency::graphics::double_2 ZernikeV(double r, int q, double theta) restrict(cpu, amp)
 {
-	return float_2(r * fast_math::cos(q * theta),
-		r * fast_math::sin(q * theta));
+	return double_2(r * precise_math::cos(q * theta),
+		r * precise_math::sin(q * theta));
 }
 
-uint32_t factorial(uint32_t n) restrict(cpu, amp)
+int factorial(uint32_t n) restrict(cpu, amp)
 {
 	if (n <= 10)
 	{
-		const uint32_t factorials[11] = { 1 , 1 , 2 , 6 , 24 , 120 , 720 , 5040 , 40320 , 362880 , 39916800 };
+		const int factorials[11] = { 1 , 1 , 2 , 6 , 24 , 120 , 720 , 5040 , 40320 , 362880 , 39916800 };
 		return factorials[n];
 	}
 
-	uint32_t m = 1;
+	int m = 1;
 	for (uint32_t i = 2; i <= n; i++)
 	{
 		m *= i;

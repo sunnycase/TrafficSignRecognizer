@@ -85,6 +85,16 @@ concurrency::task<void> Recognizer::PrepareTargetImage(BitmapFrame ^ frame)
 
 concurrency::task<void> Recognizer::FindContours()
 {
+	double mat[6][7] = 
+	{
+		{ 9,8622,9,8259882,8622,15,266.430299700000 },
+		{ 8622,8259882,8622,7912978452.00000,8259882,14370,255234.943755000 },
+		{ 9,8622,15,8259882,14370,27,274.304244900000 },
+		{ 8259882,7912978452.00000,8259882,7580649876774.00,7912978452.00000,13766470,244510179.580030 },
+		{ 8622,8259882,14370,7912978452.00000,13766470,25866,262775.680801800 },
+		{ 15,14370,27,13766470,25866,51,447.109065900000 }
+	};
+	auto ret = Solve(mat);
 	//FindEdgesAndTangent();
 	//texture_view<const unorm, 2> edges(_edgeTex);
 	//texture_view<const unorm_4, 2> input(_targetImage);
@@ -368,9 +378,13 @@ void Recognizer::FillCircleSignTargetsSource()
 						coord1.x * fast_math::sin(-el.theta) + coord1.y * fast_math::cos(-el.theta));
 					coord2 /= float_2(el.a, el.b);
 
-					const auto id = atomic_fetch_add(&pointsCount[0], 1);
-					points[id] = { unorm(fast_math::sqrt(coord2.x * coord2.x + coord2.y * coord2.y)),
-								   fast_math::atan2(coord2.y, coord2.x) };
+					UnitCirclePoint point{ unorm(fast_math::sqrt(coord2.x * coord2.x + coord2.y * coord2.y)),
+						fast_math::atan2(coord2.y, coord2.x) };
+					if (point.rho < 0.9f)
+					{
+						const auto id = atomic_fetch_add(&pointsCount[0], 1);
+						points[id] = point;
+					}
 				}
 			}
 		});
@@ -394,7 +408,7 @@ void Recognizer::CalculateZernike()
 		const auto pointsCount = extent<1>(target.pointsCount);
 		array_view<UnitCirclePoint, 1> pointsView(target.points);
 		array_view<uint, 2> outputTex(_outputTex);
-		array<float, 1> V(pointsCount, _acc_view), Vj(pointsCount, _acc_view);
+		array<double, 1> V(pointsCount, _acc_view), Vj(pointsCount, _acc_view);
 		for (size_t i = 0; i < mnPairs.size(); i++)
 		{
 			const auto p = mnPairs[i].x;
@@ -411,12 +425,12 @@ void Recognizer::CalculateZernike()
 				outputTex(outputTex.extent[0] - y, x) = uint(0xFFFFFFFF);
 			});
 
-			const std::vector<float> cpuV(V), cpuVj(Vj);
+			const std::vector<double> cpuV(V), cpuVj(Vj);
 			concurrency::combinable<double> cbV, cbVj;
-			parallel_for_each(cpuV.begin(), cpuV.end(), [&](float value) {cbV.local() += value;});
-			parallel_for_each(cpuVj.begin(), cpuVj.end(), [&](float value) {cbVj.local() += value;});
-			const auto sV = cbV.combine(std::plus<double>()) * (2 * p + 2) / area;
-			const auto sVj = cbVj.combine(std::plus<double>()) * (2 * p + 2) / area;
+			parallel_for_each(cpuV.begin(), cpuV.end(), [&](double value) {cbV.local() += value;});
+			parallel_for_each(cpuVj.begin(), cpuVj.end(), [&](double value) {cbVj.local() += value;});
+			const auto sV = cbV.combine(std::plus<double>()) * (p + 1) / 3.1415 / pointsCount[0];
+			const auto sVj = cbVj.combine(std::plus<double>()) * (p + 1) / 3.1415 / pointsCount[0];
 			const auto Z = sqrt(sV * sV + sVj * sVj);
 			circleSignZernikes[cntId][i] = { p, q, (float)Z };
 		}
