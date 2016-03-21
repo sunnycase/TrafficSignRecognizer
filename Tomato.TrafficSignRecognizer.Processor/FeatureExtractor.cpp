@@ -104,6 +104,7 @@ concurrency::task<void> FeatureExtractor::FindContours()
 	AbsorbRedTexels();
 	FindEdgesAndTangent();
 
+	texture_view<const unorm_4, 2> input(_targetImage);
 	texture_view<const unorm, 2> redTex(_redTex);
 	texture_view<const unorm, 2> edges(_edgeTex);
 	texture_view<const float, 2> tangents(_tangentTex);
@@ -111,7 +112,7 @@ concurrency::task<void> FeatureExtractor::FindContours()
 
 	return FindEllipses().then([=]
 	{
-		parallel_for_each(_acc_view, _targetImageExtent, [outputTex, tangents, edges](index<2> index) restrict(amp)
+		parallel_for_each(_acc_view, _targetImageExtent, [input, outputTex, tangents, edges](index<2> index) restrict(amp)
 		{
 			//const auto gray = fast_math::sin(fast_math::atan(tangents[index]));
 			//if (gray < 0)
@@ -140,6 +141,8 @@ concurrency::task<void> FeatureExtractor::FindContours()
 			//	else
 			//		outputTex[index] = uint(0xFF000000);
 			//}
+			if(IsRed(input[index]))
+				outputTex[index] = uint(0xFFFF0000);
 		});
 	});
 }
@@ -236,7 +239,7 @@ task<void> FeatureExtractor::FindEllipses()
 	});
 
 	const auto edgeSize = extent<1>(edgePointsCount(0));
-	const auto maxEllipses = edgeSize * 100;
+	const auto maxEllipses = extent<1>(std::min(edgeSize[0] * 100, 50000));
 
 	typedef sobol_rng<5>::sobol_number<float> sobol_float_number;
 	sobol_rng_collection<sobol_rng<5>, 1> sc_rng(_acc_view, maxEllipses, 1);
@@ -246,11 +249,6 @@ task<void> FeatureExtractor::FindEllipses()
 
 	parallel_for_each(_acc_view, maxEllipses, [=, &edgePositions, &fitsCount, &ellipses](index<1> idx) restrict(amp)
 	{
-		const auto id1 = idx[0];
-		const auto x1 = id1 % edgeView.extent[1];
-		const auto y1 = id1 / edgeView.extent[1];
-		const auto p1Index = edgePositions(y1, x1);
-
 		// Get the sobol RNG 
 		auto rng = sc_rng[idx];
 		// Skip ahead to the right position
@@ -432,9 +430,9 @@ void FeatureExtractor::CalculateZernike()
 				auto v = ZernikeV(r, q, point.theta);
 				V[index] = v.x;
 				Vj[index] = v.y;
-				const auto x = point.rho * fast_math::cos(point.theta) * 20.f + outputTex.extent[1] / 2.f;
-				const auto y = point.rho * fast_math::sin(point.theta) * 20.f + outputTex.extent[0] / 2.f;
-				outputTex(outputTex.extent[0] - y, x) = uint(0xFFFFFFFF);
+				//const auto x = point.rho * fast_math::cos(point.theta) * 20.f + outputTex.extent[1] / 2.f;
+				//const auto y = point.rho * fast_math::sin(point.theta) * 20.f + outputTex.extent[0] / 2.f;
+				//outputTex(outputTex.extent[0] - y, x) = uint(0xFFFFFFFF);
 			});
 
 			const std::vector<double> cpuV(V), cpuVj(Vj);

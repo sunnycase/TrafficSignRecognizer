@@ -132,6 +132,17 @@
     <Content Include="Assets\1\7.jpg" />
     <Content Include="Assets\1\8.jpg" />
     <Content Include="Assets\1\9.jpg" />
+    <Content Include="Assets\2\0.jpg" />
+    <Content Include="Assets\2\1.jpg" />
+    <Content Include="Assets\2\10.jpg" />
+    <Content Include="Assets\2\2.jpg" />
+    <Content Include="Assets\2\3.jpg" />
+    <Content Include="Assets\2\4.jpg" />
+    <Content Include="Assets\2\5.jpg" />
+    <Content Include="Assets\2\6.jpg" />
+    <Content Include="Assets\2\7.jpg" />
+    <Content Include="Assets\2\8.jpg" />
+    <Content Include="Assets\2\9.jpg" />
     <Content Include="Properties\Default.rd.xml" />
     <Content Include="Assets\LockScreenLogo.scale-200.png" />
     <Content Include="Assets\SplashScreen.scale-200.png" />

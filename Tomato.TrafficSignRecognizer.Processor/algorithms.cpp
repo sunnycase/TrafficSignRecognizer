@@ -400,7 +400,7 @@ bool FitEllipse(concurrency::index<2> p1, concurrency::index<2> p2, float p1Tan,
 	return false;
 }
 
-bool FitEllipse(concurrency::graphics::float_2 (&points)[5], float width, float height, concurrency::array<uint32_t, 1>& fitsCount, concurrency::array<EllipseParam, 1>& ellipses) restrict(amp)
+bool FitEllipse(concurrency::graphics::float_2(&points)[5], float width, float height, concurrency::array<uint32_t, 1>& fitsCount, concurrency::array<EllipseParam, 1>& ellipses) restrict(amp)
 {
 	float U[5][5];
 	float UT[5][5];
@@ -460,7 +460,7 @@ bool FitEllipse(concurrency::graphics::float_2 (&points)[5], float width, float 
 				ellipse.theta = fast_math::fabs(fast_math::atan(ellipse.B / (ellipse.A - ellipse.C)) / 2.f);
 				ellipse.area = uint32_t(fast_math::ceil(ellipse.a * ellipse.b * 3.1415f));
 				ellipse.rank = 0;
-				
+
 				auto id = atomic_fetch_add(&fitsCount(0), 1);
 				ellipse.id = id;
 				ellipses(id) = ellipse;
@@ -504,15 +504,18 @@ bool InEllipse(const EllipseParam & ellipse, concurrency::graphics::float_2 poin
 
 bool IsRed(concurrency::graphics::unorm_4 pixel) restrict(cpu, amp)
 {
+	const auto max = fast_math::fmax(pixel.r, fast_math::fmax(pixel.g, pixel.b));
+	const auto min = fast_math::fmin(pixel.r, fast_math::fmin(pixel.g, pixel.b));
+	const auto V = max / 255;
+	const auto S = (max - min) / max;
+	float H;
+	if (pixel.r == max)
+		H = (pixel.g - pixel.b) / (max - min) * 60;
+	if (pixel.g == max) H = 120 + (pixel.b - pixel.r) / (max - min) * 60;
+	if (pixel.b == max) H = 240 + (pixel.r - pixel.g) / (max - min) * 60;
+	if (H < 0) H = H + 360;
 	const auto y = Grayscale(pixel) * 255.f;
-	const auto u = 0.436f * (pixel.b * 255.f - y) / (1.f - 0.114) + 128.f;
-	const auto v = 0.615f * (pixel.r * 255.f - y) / (1.f - 0.299) + 128.f;
-	if (y > 10 && y < 120)
-	{
-		if (v - u > 15)
-			return true;
-	}
-	return false;
+	return ((H >= 0 && H <= 23) || (H >= 315 && H <= 360)) && (y > 20 && y < 190);
 }
 
 double ZernikeR(int p, int q, double rho) restrict(cpu, amp)
