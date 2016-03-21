@@ -462,6 +462,7 @@ bool FitEllipse(concurrency::graphics::float_2 (&points)[5], float width, float 
 				ellipse.rank = 0;
 				
 				auto id = atomic_fetch_add(&fitsCount(0), 1);
+				ellipse.id = id;
 				ellipses(id) = ellipse;
 				return true;
 			}
@@ -506,9 +507,9 @@ bool IsRed(concurrency::graphics::unorm_4 pixel) restrict(cpu, amp)
 	const auto y = Grayscale(pixel) * 255.f;
 	const auto u = 0.436f * (pixel.b * 255.f - y) / (1.f - 0.114) + 128.f;
 	const auto v = 0.615f * (pixel.r * 255.f - y) / (1.f - 0.299) + 128.f;
-	if (y < 120)
+	if (y > 10 && y < 120)
 	{
-		if (v - u > 30)
+		if (v - u > 15)
 			return true;
 	}
 	return false;

@@ -1,25 +1,27 @@
 ﻿//
 // Traffic Sign Recognizer
-// Recognizer
+// 特征提取器
 // 作者：SunnyCase
 // 创建日期：2016-02-25
 #include "pch.h"
-#include "Recognizer.h"
+#include "FeatureExtractor.h"
 #include <amp_math.h>
 #include "algorithms.h"
 #include "amprng/amp_sobol_rng.h"
 
 using namespace NS_TSR_PRCSR;
 using namespace Platform;
+using namespace Platform::Collections;
 using namespace concurrency;
 using namespace concurrency::graphics;
 using namespace Windows::Foundation;
+using namespace Windows::Foundation::Collections;
 using namespace Windows::Graphics::Imaging;
 using namespace WRL;
 
 static const uint32_t zero = 0;
 
-Recognizer::Recognizer(unsigned int width, unsigned int height)
+FeatureExtractor::FeatureExtractor(unsigned int width, unsigned int height)
 	:_targetImageExtent(height, width),
 	_acc_view(concurrency::direct3d::create_accelerator_view(accelerator(), true)),
 	_targetImage(_targetImageExtent, 16U, _acc_view), _outputTex(_targetImageExtent, _acc_view),
@@ -29,7 +31,7 @@ Recognizer::Recognizer(unsigned int width, unsigned int height)
 
 }
 
-Windows::Foundation::IAsyncAction ^ Recognizer::SetTarget(BitmapFrame ^ frame)
+Windows::Foundation::IAsyncAction ^ FeatureExtractor::SetTarget(BitmapFrame ^ frame)
 {
 	return create_async([=]
 	{
@@ -37,7 +39,7 @@ Windows::Foundation::IAsyncAction ^ Recognizer::SetTarget(BitmapFrame ^ frame)
 	});
 }
 
-IAsyncOperation<bool>^ Recognizer::Recognize(Windows::Storage::Streams::IRandomAccessStream^ outputStream)
+IAsyncOperation<bool>^ FeatureExtractor::Recognize(Windows::Storage::Streams::IRandomAccessStream^ outputStream)
 {
 	return create_async([=]() -> task<bool>
 	{
@@ -61,7 +63,21 @@ IAsyncOperation<bool>^ Recognizer::Recognize(Windows::Storage::Streams::IRandomA
 	});
 }
 
-concurrency::task<void> Recognizer::PrepareTargetImage(BitmapFrame ^ frame)
+Windows::Foundation::IAsyncOperation<Windows::Foundation::Collections::IIterable<Windows::Foundation::Collections::IVectorView<ZernikeResult>^>^>^ FeatureExtractor::CaculateZernikes()
+{
+	return create_async([=]()
+	{
+		return task_from_result().then([=]() -> IIterable<IVectorView<ZernikeResult>^>^
+		{
+			auto ellipses = ref new Vector<IVectorView<ZernikeResult>^>();
+			for (auto&& el : _circleSignZernikes)
+				ellipses->Append(ref new VectorView<ZernikeResult>(el.begin(), el.end()));
+			return ellipses;
+		});
+	});
+}
+
+concurrency::task<void> FeatureExtractor::PrepareTargetImage(BitmapFrame ^ frame)
 {
 	auto transform = ref new BitmapTransform();
 	return create_task(frame->GetPixelDataAsync(BitmapPixelFormat::Bgra8, BitmapAlphaMode::Premultiplied, transform,
@@ -83,22 +99,8 @@ concurrency::task<void> Recognizer::PrepareTargetImage(BitmapFrame ^ frame)
 	});
 }
 
-concurrency::task<void> Recognizer::FindContours()
+concurrency::task<void> FeatureExtractor::FindContours()
 {
-	double mat[6][7] = 
-	{
-		{ 9,8622,9,8259882,8622,15,266.430299700000 },
-		{ 8622,8259882,8622,7912978452.00000,8259882,14370,255234.943755000 },
-		{ 9,8622,15,8259882,14370,27,274.304244900000 },
-		{ 8259882,7912978452.00000,8259882,7580649876774.00,7912978452.00000,13766470,244510179.580030 },
-		{ 8622,8259882,14370,7912978452.00000,13766470,25866,262775.680801800 },
-		{ 15,14370,27,13766470,25866,51,447.109065900000 }
-	};
-	auto ret = Solve(mat);
-	//FindEdgesAndTangent();
-	//texture_view<const unorm, 2> edges(_edgeTex);
-	//texture_view<const unorm_4, 2> input(_targetImage);
-
 	AbsorbRedTexels();
 	FindEdgesAndTangent();
 
@@ -142,7 +144,7 @@ concurrency::task<void> Recognizer::FindContours()
 	});
 }
 
-void Recognizer::FindEdgesAndTangent()
+void FeatureExtractor::FindEdgesAndTangent()
 {
 	uint radius = 3;
 	texture_view<unorm, 2> edgeView(_edgeTex);
@@ -159,7 +161,7 @@ void Recognizer::FindEdgesAndTangent()
 	});
 }
 
-void Recognizer::AbsorbRedTexels()
+void FeatureExtractor::AbsorbRedTexels()
 {
 	texture_view<const unorm_4, 2> input(_targetImage);
 	texture_view<unorm, 2> redTex(_redTex);
@@ -214,7 +216,7 @@ void Recognizer::AbsorbRedTexels()
 	copy(tmpTex, _redTex);
 }
 
-task<void> Recognizer::FindEllipses()
+task<void> FeatureExtractor::FindEllipses()
 {
 	float height = _targetImageExtent[0];
 
@@ -295,13 +297,22 @@ task<void> Recognizer::FindEllipses()
 		});
 
 		_ellipsesFit.clear();
+		_ellipsesFit.reserve(ellipseCount);
 		const float lambda = 0.6f;
 		for (auto&& it : ellipsesSort)
 		{
 			auto min = lambda * 3.14f * (1.5f * (it.a + it.b) - fast_math::sqrt(it.a * it.b));
 			if (it.a > 10.f && it.b > 10.f && it.rank >= min)
-				_ellipsesFit.emplace_back(it);
+				if(!std::any_of(_ellipsesFit.begin(), _ellipsesFit.end(), [&](const EllipseParam& el)
+				{
+					if (el.id != it.id &&
+						fabs(el.x - it.x) < 3.f && fabs(el.y - it.y) < 3.f)
+						return (el.a < it.a && el.b < it.b) || (fabs(el.a - it.a) < 3.f && fabs(el.b - it.b) < 3.f);
+					return false;
+				}))
+					_ellipsesFit.emplace_back(it);
 		}
+
 
 		FillCircleSignTargetsSource();
 		CalculateZernike();
@@ -346,7 +357,7 @@ task<void> Recognizer::FindEllipses()
 	return task_from_result();
 }
 
-void Recognizer::FillCircleSignTargetsSource()
+void FeatureExtractor::FillCircleSignTargetsSource()
 {
 	float height = _targetImageExtent[0];
 	texture_view<const unorm_4, 2> inputTex(_targetImage);
@@ -392,15 +403,16 @@ void Recognizer::FillCircleSignTargetsSource()
 	}
 }
 
-static std::array<uint_2, 8> mnPairs = {
-	uint_2(2, 2),uint_2(3, 1),uint_2(3, 3),uint_2(4, 2),
-	uint_2(4, 4),uint_2(5, 1),uint_2(5, 3),uint_2(5, 5),
+static std::array<int_2, 9> mnPairs = {
+	int_2(1, 1),int_2(2, 0),int_2(3, 1),
+	int_2(4, 0),int_2(4, 2),int_2(5, 3),
+	int_2(6, 2),int_2(7, 3),int_2(7, 5),
 };
 
-void Recognizer::CalculateZernike()
+void FeatureExtractor::CalculateZernike()
 {
-	circleSignZernikes.clear();
-	circleSignZernikes.resize(_circleSignTargetsSource.size());
+	_circleSignZernikes.clear();
+	_circleSignZernikes.resize(_circleSignTargetsSource.size());
 	size_t cntId = 0;
 	for (auto&& target : _circleSignTargetsSource)
 	{
@@ -416,7 +428,7 @@ void Recognizer::CalculateZernike()
 			parallel_for_each(_acc_view, pointsCount, [=, &V, &Vj](index<1> index) restrict(amp)
 			{
 				const auto point = pointsView[index];
-				auto r = ZernikeR(p, q, point.rho);
+				auto r = ZernikeR(p, q, 1.0 - point.rho);
 				auto v = ZernikeV(r, q, point.theta);
 				V[index] = v.x;
 				Vj[index] = v.y;
@@ -432,7 +444,7 @@ void Recognizer::CalculateZernike()
 			const auto sV = cbV.combine(std::plus<double>()) * (p + 1) / 3.1415 / pointsCount[0];
 			const auto sVj = cbVj.combine(std::plus<double>()) * (p + 1) / 3.1415 / pointsCount[0];
 			const auto Z = sqrt(sV * sV + sVj * sVj);
-			circleSignZernikes[cntId][i] = { p, q, (float)Z };
+			_circleSignZernikes[cntId][i] = { uint32_t(p), q, (float)Z };
 		}
 		break;
 		cntId++;

@@ -1,6 +1,6 @@
 ﻿//
 // Traffic Sign Recognizer
-// Recognizer
+// 特征提取器
 // 作者：SunnyCase
 // 创建日期：2016-02-25
 #include "common.h"
@@ -12,13 +12,14 @@
 
 DEFINE_NS_TSR_PRCSR
 
-public ref class Recognizer sealed
+public ref class FeatureExtractor sealed
 {
 public:
-	Recognizer(unsigned int width, unsigned int height);
+	FeatureExtractor(unsigned int width, unsigned int height);
 
 	Windows::Foundation::IAsyncAction^ SetTarget(Windows::Graphics::Imaging::BitmapFrame ^ frame);
 	Windows::Foundation::IAsyncOperation<bool>^ Recognize(Windows::Storage::Streams::IRandomAccessStream^ outputStream);
+	Windows::Foundation::IAsyncOperation<Windows::Foundation::Collections::IIterable<Windows::Foundation::Collections::IVectorView<ZernikeResult>^>^>^ CaculateZernikes();
 private:
 	concurrency::task<void> PrepareTargetImage(Windows::Graphics::Imaging::BitmapFrame ^ frame);
 	concurrency::task<void> FindContours();
@@ -39,7 +40,7 @@ private:
 	concurrency::graphics::texture<float, 2> _tangentTex;
 	std::vector<EllipseParam> _ellipsesFit;
 	std::vector<ZernikeDataSource> _circleSignTargetsSource;
-	std::vector<std::array<ZernikeResult, 8>> circleSignZernikes;
+	std::vector<std::array<ZernikeResult, 9>> _circleSignZernikes;
 };
 
 END_NS_TSR_PRCSR

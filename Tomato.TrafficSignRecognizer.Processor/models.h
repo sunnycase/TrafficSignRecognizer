@@ -4,6 +4,7 @@
 // 作者：SunnyCase
 // 创建日期：2016-03-18
 #include "common.h"
+#include <xstddef>
 #include <amp_graphics.h>
 #pragma once
 
@@ -15,6 +16,7 @@ struct EllipseParam
 	float x, y;
 	float a, b;
 	float theta;
+	uint32_t id;
 	uint32_t rank;
 	uint32_t area;
 	float lambda;
@@ -45,7 +47,7 @@ struct ZernikeDataSource
 	}
 };
 
-struct ZernikeResult
+public value struct ZernikeResult
 {
 	uint32_t p;
 	int q;
@@ -53,3 +55,15 @@ struct ZernikeResult
 };
 
 END_NS_TSR_PRCSR
+
+namespace std
+{
+	template<>
+	struct equal_to<NS_TSR_PRCSR::ZernikeResult>
+	{
+		_CONST_FUN bool operator()(const NS_TSR_PRCSR::ZernikeResult& _Left, const NS_TSR_PRCSR::ZernikeResult& _Right) const
+		{	
+			return _Left.p == _Right.p && _Left.q == _Right.q && _Left.z == _Right.z;
+		}
+	};
+}
