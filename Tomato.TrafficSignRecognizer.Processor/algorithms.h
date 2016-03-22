@@ -1,8 +1,8 @@
-//
+ï»¿//
 // Traffic Sign Recognizer
-// Ëã·¨
-// ×÷Õß£ºSunnyCase
-// ´´½¨ÈÕÆÚ£º2016-02-26
+// ç®—æ³•
+// ä½œè€…ï¼šSunnyCase
+// åˆ›å»ºæ—¥æœŸï¼š2016-02-26
 #include "common.h"
 #include <amp.h>
 #include <amp_graphics.h>
@@ -10,15 +10,16 @@
 
 DEFINE_NS_TSR_PRCSR
 
+#define F 1000.f
+
 concurrency::graphics::unorm Grayscale(const concurrency::graphics::unorm_4& color) restrict(cpu, amp);
 concurrency::graphics::unorm Threshold(concurrency::graphics::unorm color, float threshold) restrict(cpu, amp);
 concurrency::graphics::unorm SusanTest(const concurrency::graphics::texture_view<const concurrency::graphics::unorm_4, 2>& image, concurrency::index<2> index, unsigned int radius, float threshold) restrict(amp);
 concurrency::graphics::unorm SusanTest(const concurrency::graphics::texture_view<const concurrency::graphics::unorm, 2>& image, concurrency::index<2> index, unsigned int radius, float threshold) restrict(amp);
-float CalculateTangent(const concurrency::graphics::texture_view<const concurrency::graphics::unorm_4, 2>& image, concurrency::index<2> index) restrict(amp);
+concurrency::graphics::float_2 CalculateTangent(const concurrency::graphics::texture_view<const concurrency::graphics::unorm_4, 2>& image, concurrency::index<2> index) restrict(amp);
 float CalculateTangent(const concurrency::graphics::texture_view<const concurrency::graphics::unorm, 2>& image, concurrency::index<2> index) restrict(amp);
-void FindEllipsePoints(concurrency::index<2> p1, concurrency::index<2> p2, float p1Tan, float p2Tan, const concurrency::graphics::texture_view<const concurrency::graphics::unorm, 2>& edgeView, const concurrency::graphics::texture_view<const float, 2>& tangentView, concurrency::array<uint32_t, 1>& fitsCount, concurrency::array<EllipsePoints, 1>& ellipses) restrict(amp);
+bool FindEllipsePoints(concurrency::graphics::float_2(&points)[2], concurrency::graphics::float_2(&tagents)[2], const concurrency::graphics::texture_view<const concurrency::graphics::unorm, 2>& edgeView, const concurrency::graphics::texture_view<const concurrency::graphics::float_2, 2>& tangentView, EllipsePoints& ellipse) restrict(amp);
 bool FitEllipse(concurrency::index<2> p1, concurrency::index<2> p2, float p1Tan, float p2Tan, const concurrency::graphics::texture_view<const concurrency::graphics::unorm, 2>& edgeView, const concurrency::graphics::texture_view<const float, 2>& tangentView, concurrency::array<uint32_t, 1>& fitsCount, concurrency::array<EllipseParam, 1>& ellipses) restrict(amp);
-bool FitEllipse(concurrency::graphics::float_2 (&points)[5], float width, float height, concurrency::array<uint32_t, 1>& fitsCount, concurrency::array<EllipseParam, 1>& ellipses) restrict(amp);
 concurrency::graphics::float_2 coord(concurrency::graphics::float_2 point, const concurrency::extent<2>& extent) restrict(cpu, amp);
 bool OnEllipse(const EllipseParam& ellipse, concurrency::graphics::float_2 point, float threhold) restrict(cpu,amp);
 bool InEllipse(const EllipseParam& ellipse, concurrency::graphics::float_2 point) restrict(cpu, amp);
@@ -28,7 +29,7 @@ concurrency::graphics::double_2 ZernikeV(double r, int q, double theta) restrict
 int factorial(uint32_t n) restrict(cpu, amp);
 int powneg1(uint32_t n) restrict(cpu, amp);
 
-// ½âÒ»Ôª¶þ´Î·½³Ì
+// è§£ä¸€å…ƒäºŒæ¬¡æ–¹ç¨‹
 bool Solve(float a, float b, float c, float(&x)[2]) restrict(cpu, amp);
 
 template<typename T, uint32_t N>
@@ -76,7 +77,7 @@ bool Solve(T(&mat)[M][N]) restrict(cpu, amp)
 	for (int i = 0; i < M; i++)
 	{
 		bool find = false;
-		// ²éÕÒµ±Ç°ÔªµÄ·ÇÁãÐÐ
+		// æŸ¥æ‰¾å½“å‰å…ƒçš„éžé›¶è¡Œ
 		for (int j = i; j < M; j++)
 			if (mat[j][i] != 0)
 			{
@@ -87,14 +88,14 @@ bool Solve(T(&mat)[M][N]) restrict(cpu, amp)
 				find = true;
 				break;
 			}
-		// ¶¼ÊÇ 0 ÔòÎÞ½â
+		// éƒ½æ˜¯ 0 åˆ™æ— è§£
 		if (!find) return false;
-		// ÏûÈ¥ÆäËûµ±Ç°Ôª²»Îª0µÄÐÐ
+		// æ¶ˆåŽ»å…¶ä»–å½“å‰å…ƒä¸ä¸º0çš„è¡Œ
 		for (int j = 0; j < M; j++)
 		{
 			if (j != i && mat[j][i] != 0)
 			{
-				// Òª¼õÈ¥µÄfactor
+				// è¦å‡åŽ»çš„factor
 				const auto minusFactor = mat[j][i];
 				for (int k = 0; k < N; k++)
 					mat[j][k] -= mat[i][k] * minusFactor;
@@ -102,6 +103,83 @@ bool Solve(T(&mat)[M][N]) restrict(cpu, amp)
 		}
 	}
 	return true;
+}
+
+template<uint32_t N>
+bool FitEllipse(concurrency::graphics::float_2(&points)[N], float width, float height, concurrency::array<uint32_t, 1>& fitsCount, concurrency::array<EllipseParam, 1>& ellipses) restrict(amp)
+{
+	using namespace concurrency;
+
+	float U[N][5];
+	float UT[5][N];
+	for (uint32_t i = 0; i < N; i++)
+	{
+		const auto& point = points[i];
+		// xÂ² xy yÂ² x y
+		U[i][0] = point.x * point.x;
+		U[i][1] = point.x * point.y;
+		U[i][2] = point.y * point.y;
+		U[i][3] = point.x;
+		U[i][4] = point.y;
+
+		UT[0][i] = U[i][0];
+		UT[1][i] = U[i][1];
+		UT[2][i] = U[i][2];
+		UT[3][i] = U[i][3];
+		UT[4][i] = U[i][4];
+	}
+
+	// UT x U å½¢æˆ 5 x 5 çŸ©é˜µ
+	// UT x V å½¢æˆ 5 x 1 çŸ©é˜µ
+	float mat[5][5 + 1];
+	for (uint32_t i = 0; i < 5; i++)
+	{
+		for (uint32_t j = 0; j < 5; j++)
+		{
+			float sum = 0;
+			for (uint32_t k = 0; k < N; k++)
+				sum += UT[i][k] * U[k][j];
+			mat[i][j] = sum;
+		}
+		float sum = 0;
+		for (uint32_t k = 0; k < N; k++)
+			sum += UT[i][k] * -F;
+		mat[i][5] = sum;
+	}
+	if (auto solved = Solve(mat))
+	{
+		EllipseParam ellipse{ mat[0][5], mat[1][5], mat[2][5], mat[3][5], mat[4][5] };
+		// æ¤­åœ†åˆ¤åˆ«å¼ BÂ² - 4AC < 0
+		auto value = ellipse.B * ellipse.B - 4.f * ellipse.A * ellipse.C;
+		if (value < 0.f)
+		{
+			ellipse.y = (2.f * ellipse.A * ellipse.E - ellipse.B * ellipse.D) / (ellipse.B * ellipse.B - 4.f * ellipse.A * ellipse.C);
+			ellipse.x = (2.f * ellipse.C * ellipse.D - ellipse.B * ellipse.E) / (ellipse.B * ellipse.B - 4.f * ellipse.A * ellipse.C);
+			if (ellipse.x > 0.f && ellipse.x < width &&
+				ellipse.y > 0.f && ellipse.y < height)
+			{
+				ellipse.a = fast_math::sqrt(2.f * (
+					(ellipse.A * ellipse.E * ellipse.E - ellipse.B * ellipse.D * ellipse.E + ellipse.C * ellipse.D * ellipse.D) / (4.f * ellipse.A * ellipse.C - ellipse.B * ellipse.B) - F
+					) / (ellipse.A + ellipse.C - fast_math::sqrt(fast_math::pow(ellipse.A - ellipse.C, 2) + ellipse.B * ellipse.B)));
+				ellipse.b = fast_math::sqrt(2.f * (
+					(ellipse.A * ellipse.E * ellipse.E - ellipse.B * ellipse.D * ellipse.E + ellipse.C * ellipse.D * ellipse.D) / (4.f * ellipse.A * ellipse.C - ellipse.B * ellipse.B) - F
+					) / (ellipse.A + ellipse.C + fast_math::sqrt(fast_math::pow(ellipse.A - ellipse.C, 2) + ellipse.B * ellipse.B)));
+
+				ellipse.theta = fast_math::fabs(fast_math::atan(ellipse.B / (ellipse.A - ellipse.C)) / 2.f);
+				ellipse.area = uint32_t(fast_math::round(ellipse.a * ellipse.b * 3.1415f));
+				const auto major = fast_math::fmax(ellipse.a, ellipse.b);
+				const auto minor = fast_math::fmin(ellipse.a, ellipse.b);
+				ellipse.length = uint32_t(fast_math::round(2.f * 3.14f * minor + 4.f * (major - minor)));
+				ellipse.rank = 0;
+
+				auto id = atomic_fetch_add(&fitsCount(0), 1);
+				ellipse.id = id;
+				ellipses(id) = ellipse;
+				return true;
+			}
+		}
+	}
+	return false;
 }
 
 END_NS_TSR_PRCSR

@@ -26,6 +26,7 @@ private:
 	// 查找边缘并计算切线方向
 	void FindEdgesAndTangent();
 	void AbsorbRedTexels();
+	concurrency::array_view<const EllipsePoints, 1> AbsorbEllipsePointPairs(uint32_t& count);
 	concurrency::task<void> FindEllipses();
 	void FillCircleSignTargetsSource();
 	void CalculateZernike();
@@ -37,10 +38,12 @@ private:
 	concurrency::array<concurrency::graphics::uint, 2> _outputTex;
 	concurrency::graphics::texture<concurrency::graphics::unorm, 2> _edgeTex;
 	concurrency::graphics::texture<concurrency::graphics::unorm, 2> _redTex;
-	concurrency::graphics::texture<float, 2> _tangentTex;
+	concurrency::graphics::texture<concurrency::graphics::float_2, 2> _tangentTex;
 	std::vector<EllipseParam> _ellipsesFit;
-	std::vector<ZernikeDataSource> _circleSignTargetsSource;
-	std::vector<std::array<ZernikeResult, 9>> _circleSignZernikes;
+	std::vector<concurrency::graphics::texture_view<const concurrency::graphics::unorm, 2>> _circleSignTargetsSource;
+	std::vector<std::array<ZernikeResult, 11>> _circleSignZernikes;
+	uint32_t _edgePointsCount;
+	concurrency::array<concurrency::index<2>, 1> _edgePositions;
 };
 
 END_NS_TSR_PRCSR

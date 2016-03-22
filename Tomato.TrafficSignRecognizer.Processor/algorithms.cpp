@@ -6,12 +6,9 @@
 #include "pch.h"
 #include "algorithms.h"
 #include <amp_math.h>
-#include <opencv2/opencv.hpp>
 
 using namespace concurrency;
 using namespace concurrency::graphics;
-
-#define F 1000.f
 
 DEFINE_NS_TSR_PRCSR
 
@@ -84,7 +81,7 @@ concurrency::graphics::unorm SusanTest(const texture_view<const unorm, 2>& image
 	return unorm(same < (total / 2) ? 1.f : 0.f);
 }
 
-float CalculateTangent(const concurrency::graphics::texture_view<const concurrency::graphics::unorm_4, 2>& image, concurrency::index<2> index) restrict(amp)
+float_2 CalculateTangent(const concurrency::graphics::texture_view<const concurrency::graphics::unorm_4, 2>& image, concurrency::index<2> index) restrict(amp)
 {
 	float a[9];
 	a[0] = Grayscale(image.sample(float_2(float(index[1] - 1) / (float)image.extent[1], float(index[0] - 1) / (float)image.extent[0])));
@@ -100,7 +97,7 @@ float CalculateTangent(const concurrency::graphics::texture_view<const concurren
 
 	auto Gx = (a[6] + 2 * a[7] + a[8]) - (a[0] + 2 * a[1] + a[2]);
 	auto Gy = (a[2] + 2 * a[5] + a[8]) - (a[0] + 2 * a[3] + a[6]);
-	return Gy / Gx;
+	return float_2(Gx, Gy);
 }
 
 float CalculateTangent(const concurrency::graphics::texture_view<const concurrency::graphics::unorm, 2>& image, concurrency::index<2> index) restrict(amp)
@@ -122,22 +119,29 @@ float CalculateTangent(const concurrency::graphics::texture_view<const concurren
 	return Gy / Gx;
 }
 
-void FindEllipsePoints(concurrency::index<2> p1, concurrency::index<2> p2, float p1Tan, float p2Tan, const concurrency::graphics::texture_view<const concurrency::graphics::unorm, 2>& edgeView, const concurrency::graphics::texture_view<const float, 2>& tangentView, concurrency::array<uint32_t, 1>& fitsCount, concurrency::array<EllipsePoints, 1>& ellipses) restrict(amp)
+float_2 FixPoint(float_2 point) restrict(amp)
+{
+	return float_2(fast_math::round(point.x), fast_math::round(point.y));
+}
+
+bool FindEllipsePoints(float_2(&points)[2], float_2(&tagents)[2], const concurrency::graphics::texture_view<const concurrency::graphics::unorm, 2>& edgeView, const concurrency::graphics::texture_view<const float_2, 2>& tangentView, EllipsePoints& ellipse) restrict(amp)
 {
 	// 如果两切线平行则无法判断
-	if (p1Tan == p2Tan) return;
+	if (tagents[0] == tagents[1]) return false;
 
 	const float height = edgeView.extent[0];
+	const auto p1Tan = tagents[0].y / tagents[0].x;
+	const auto p2Tan = tagents[1].y / tagents[1].x;
 
-	const auto pP1 = float_2(p1[1], height - p1[0]);
-	const auto pP2 = float_2(p2[1], height - p2[0]);
+	const auto pP1 = points[0];
+	const auto pP2 = points[1];
 	// 求交点(椭圆的极) T
 	const auto b1 = pP1.y - pP1.x * p1Tan;
 	const auto b2 = pP2.y - pP1.x * p2Tan;
 	const auto pTx = (b1 - b2) / (p2Tan - p1Tan);
 	const auto pT = float_2(pTx, pTx * p1Tan + b1);
 	if (pT.x < 0.f || pT.x > edgeView.extent[1] || pT.y < 0.f || pT.y > edgeView.extent[0])
-		return;
+		return false;
 	// P1P2 的中点 M
 	const auto pM = (pP1 + pP2) / 2.f;
 	// MT 的中点 G
@@ -149,18 +153,18 @@ void FindEllipsePoints(concurrency::index<2> p1, concurrency::index<2> p2, float
 	{
 		const auto MG = pG - pM;
 		const auto MGLen = fast_math::sqrt(MG.x * MG.x + MG.y * MG.y);
-		if (MGLen < 1.f) return;
+		if (MGLen < 5.f) return false;
 		// 查找次数
 		const auto times = int(MGLen / 0.5f);
 		const auto step = MG / (float)times;
 
 		const auto P1P2 = pP2 - pP1;
-		auto p1p2Arctan = fast_math::atan(P1P2.y / P1P2.x);
+		auto p1p2Arctan = fast_math::atan2(P1P2.y, P1P2.x);
 
 		for (int i = 0; i < times; i++)
 		{
-			const auto cntP3 = pM + (step * i);
-			const auto P3Coord = coord(float_2(cntP3.x, height - cntP3.y), edgeView.extent);
+			const auto cntP3 = FixPoint(pM + (step * i));
+			const auto P3Coord = coord(float_2(cntP3.x + 0.5f, height - cntP3.y + 0.5f), edgeView.extent);
 			// 如果 T 点在图外则无法判断
 			if (P3Coord.x < 0 || P3Coord.y < 0 || P3Coord.x > 1.f || P3Coord.y > 1.f)
 				continue;
@@ -168,24 +172,19 @@ void FindEllipsePoints(concurrency::index<2> p1, concurrency::index<2> p2, float
 			{
 				// 判断 p3 切线是否与 P1P2平行
 				auto p3Tan = tangentView.sample<filter_point>(P3Coord);
-				auto m = fast_math::fabs(p1p2Arctan - fast_math::atan(p3Tan));
-				if (fast_math::fabs(p1p2Arctan - fast_math::atan(p3Tan)) <= (10.f * 2 * 3.14f / 360.f))
+				const auto threhold = (5 * 2 * 3.14f / 360.f);
+				if (fast_math::fabs(p1p2Arctan - fast_math::atan2(p3Tan.y, p3Tan.x)) <= threhold
+					|| fast_math::fabs(3.14f - p1p2Arctan + fast_math::atan2(p3Tan.y, p3Tan.x)) <= threhold)
 				{
 					// 平行
 					pP3 = cntP3;
-					auto id = atomic_fetch_add(&fitsCount(0), 1);
-					ellipses(id) = { float_2(pP1.x, height - pP1.y), float_2(pP2.x, height - pP2.y), float_2(pP3.x, height - pP3.y),
-						p1p2Arctan / 6.28f * 360.f, fast_math::atan(p3Tan) / 6.28f * 360.f };
-					break;
+					ellipse = { float_2(pP1.x, pP1.y), float_2(pP2.x, pP2.y), float_2(pP3.x, pP3.y)};
+					return true;
 				}
 			}
 		}
 	}
-}
-
-float_2 FixPoint(float_2 point) restrict(amp)
-{
-	return float_2(fast_math::ceil(point.x), fast_math::ceil(point.y));
+	return false;
 }
 
 bool FindPoint(float_2 p1, float_2 p2, const texture_view<const unorm, 2>& edgeView, float_2& point) restrict(amp)
@@ -400,77 +399,6 @@ bool FitEllipse(concurrency::index<2> p1, concurrency::index<2> p2, float p1Tan,
 	return false;
 }
 
-bool FitEllipse(concurrency::graphics::float_2(&points)[5], float width, float height, concurrency::array<uint32_t, 1>& fitsCount, concurrency::array<EllipseParam, 1>& ellipses) restrict(amp)
-{
-	float U[5][5];
-	float UT[5][5];
-	for (uint32_t i = 0; i < 5; i++)
-	{
-		const auto& point = points[i];
-		// x² xy y² x y
-		U[i][0] = point.x * point.x;
-		U[i][1] = point.x * point.y;
-		U[i][2] = point.y * point.y;
-		U[i][3] = point.x;
-		U[i][4] = point.y;
-
-		UT[0][i] = U[i][0];
-		UT[1][i] = U[i][1];
-		UT[2][i] = U[i][2];
-		UT[3][i] = U[i][3];
-		UT[4][i] = U[i][4];
-	}
-
-	// UT x U 形成 5 x 5 矩阵
-	// UT x V 形成 5 x 1 矩阵
-	float mat[5][5 + 1];
-	for (uint32_t i = 0; i < 5; i++)
-	{
-		for (uint32_t j = 0; j < 5; j++)
-		{
-			float sum = 0;
-			for (uint32_t k = 0; k < 5; k++)
-				sum += UT[i][k] * U[k][j];
-			mat[i][j] = sum;
-		}
-		float sum = 0;
-		for (uint32_t k = 0; k < 5; k++)
-			sum += UT[i][k] * -F;
-		mat[i][5] = sum;
-	}
-	if (auto solved = Solve(mat))
-	{
-		EllipseParam ellipse{ mat[0][5], mat[1][5], mat[2][5], mat[3][5], mat[4][5] };
-		// 椭圆判别式 B² - 4AC < 0
-		auto value = ellipse.B * ellipse.B - 4.f * ellipse.A * ellipse.C;
-		if (value < 0.f)
-		{
-			ellipse.y = (2.f * ellipse.A * ellipse.E - ellipse.B * ellipse.D) / (ellipse.B * ellipse.B - 4.f * ellipse.A * ellipse.C);
-			ellipse.x = (2.f * ellipse.C * ellipse.D - ellipse.B * ellipse.E) / (ellipse.B * ellipse.B - 4.f * ellipse.A * ellipse.C);
-			if (ellipse.x > 0.f && ellipse.x < width &&
-				ellipse.y > 0.f && ellipse.y < height)
-			{
-				ellipse.a = fast_math::sqrt(2.f * (
-					(ellipse.A * ellipse.E * ellipse.E - ellipse.B * ellipse.D * ellipse.E + ellipse.C * ellipse.D * ellipse.D) / (4.f * ellipse.A * ellipse.C - ellipse.B * ellipse.B) - F
-					) / (ellipse.A + ellipse.C - fast_math::sqrt(fast_math::pow(ellipse.A - ellipse.C, 2) + ellipse.B * ellipse.B)));
-				ellipse.b = fast_math::sqrt(2.f * (
-					(ellipse.A * ellipse.E * ellipse.E - ellipse.B * ellipse.D * ellipse.E + ellipse.C * ellipse.D * ellipse.D) / (4.f * ellipse.A * ellipse.C - ellipse.B * ellipse.B) - F
-					) / (ellipse.A + ellipse.C + fast_math::sqrt(fast_math::pow(ellipse.A - ellipse.C, 2) + ellipse.B * ellipse.B)));
-
-				ellipse.theta = fast_math::fabs(fast_math::atan(ellipse.B / (ellipse.A - ellipse.C)) / 2.f);
-				ellipse.area = uint32_t(fast_math::ceil(ellipse.a * ellipse.b * 3.1415f));
-				ellipse.rank = 0;
-
-				auto id = atomic_fetch_add(&fitsCount(0), 1);
-				ellipse.id = id;
-				ellipses(id) = ellipse;
-				return true;
-			}
-		}
-	}
-	return false;
-}
-
 concurrency::graphics::float_2 coord(concurrency::graphics::float_2 point, const concurrency::extent<2>& extent) restrict(cpu, amp)
 {
 	return float_2((point.x + 0.5f) / (float)extent[1], (point.y + 0.5f) / (float)extent[0]);
@@ -506,7 +434,7 @@ bool IsRed(concurrency::graphics::unorm_4 pixel) restrict(cpu, amp)
 {
 	const auto max = fast_math::fmax(pixel.r, fast_math::fmax(pixel.g, pixel.b));
 	const auto min = fast_math::fmin(pixel.r, fast_math::fmin(pixel.g, pixel.b));
-	const auto V = max / 255;
+	const auto V = max;
 	const auto S = (max - min) / max;
 	float H;
 	if (pixel.r == max)
@@ -514,8 +442,8 @@ bool IsRed(concurrency::graphics::unorm_4 pixel) restrict(cpu, amp)
 	if (pixel.g == max) H = 120 + (pixel.b - pixel.r) / (max - min) * 60;
 	if (pixel.b == max) H = 240 + (pixel.r - pixel.g) / (max - min) * 60;
 	if (H < 0) H = H + 360;
-	const auto y = Grayscale(pixel) * 255.f;
-	return ((H >= 0 && H <= 23) || (H >= 315 && H <= 360)) && (y > 20 && y < 190);
+	const auto y = Grayscale(pixel);
+	return ((H >= 0 && H <= 23) || (H >= 315 && H <= 360)) && (S > 0.4) && (y < 0.8);
 }
 
 double ZernikeR(int p, int q, double rho) restrict(cpu, amp)
@@ -566,22 +494,6 @@ bool Solve(float a, float b, float c, float(&x)[2]) restrict(cpu, amp)
 	x[0] = (-b + tmp) / (2.f * a);
 	x[1] = (-b - tmp) / (2.f * a);
 	return true;
-}
-
-void HoughCircles(concurrency::array<concurrency::graphics::uint, 2>& image)
-{
-	std::vector<::uint> source(image.extent.size());
-	copy(image, source.data());
-	std::vector<byte> gray(source.size());
-	std::transform(source.begin(), source.end(), gray.begin(), [](::uint color) { return (byte)(color & 0xFF); });
-	cv::Mat grayMat(image.extent[0], image.extent[1], CV_8U, gray.data());
-
-	//std::transform(grayMat.datastart, grayMat.dataend, source.begin(), [](byte color) { return ::uint(0xFF000000 | (color << 16) | (color << 8) | color);});
-	//copy(source.begin(), source.end(), image);
-
-	std::vector<std::vector<cv::Point>> contours;
-	cv::findContours(grayMat, contours, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_NONE);
-	auto p = contours.size();
 }
 
 END_NS_TSR_PRCSR

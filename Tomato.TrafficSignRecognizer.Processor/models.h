@@ -19,13 +19,13 @@ struct EllipseParam
 	uint32_t id;
 	uint32_t rank;
 	uint32_t area;
+	uint32_t length;
 	float lambda;
 };
 
 struct EllipsePoints
 {
 	concurrency::graphics::float_2 p1, p2, p3;
-	float rad1, rad2;
 };
 
 struct UnitCirclePoint

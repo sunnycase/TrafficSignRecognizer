@@ -26,7 +26,7 @@ FeatureExtractor::FeatureExtractor(unsigned int width, unsigned int height)
 	_acc_view(concurrency::direct3d::create_accelerator_view(accelerator(), true)),
 	_targetImage(_targetImageExtent, 16U, _acc_view), _outputTex(_targetImageExtent, _acc_view),
 	_edgeTex(_targetImageExtent, 8, _acc_view), _tangentTex(_targetImageExtent, 32, _acc_view),
-	_redTex(_targetImageExtent, 8, _acc_view)
+	_redTex(_targetImageExtent, 8, _acc_view), _edgePositions(_targetImageExtent.size(), _acc_view)
 {
 
 }
@@ -107,12 +107,12 @@ concurrency::task<void> FeatureExtractor::FindContours()
 	texture_view<const unorm_4, 2> input(_targetImage);
 	texture_view<const unorm, 2> redTex(_redTex);
 	texture_view<const unorm, 2> edges(_edgeTex);
-	texture_view<const float, 2> tangents(_tangentTex);
+	texture_view<const float_2, 2> tangents(_tangentTex);
 	array_view<uint, 2> outputTex(_outputTex);
 
 	return FindEllipses().then([=]
 	{
-		parallel_for_each(_acc_view, _targetImageExtent, [input, outputTex, tangents, edges](index<2> index) restrict(amp)
+		parallel_for_each(_acc_view, _targetImageExtent, [redTex, outputTex, tangents, edges](index<2> index) restrict(amp)
 		{
 			//const auto gray = fast_math::sin(fast_math::atan(tangents[index]));
 			//if (gray < 0)
@@ -141,8 +141,6 @@ concurrency::task<void> FeatureExtractor::FindContours()
 			//	else
 			//		outputTex[index] = uint(0xFF000000);
 			//}
-			if(IsRed(input[index]))
-				outputTex[index] = uint(0xFFFF0000);
 		});
 	});
 }
@@ -151,7 +149,7 @@ void FeatureExtractor::FindEdgesAndTangent()
 {
 	uint radius = 3;
 	texture_view<unorm, 2> edgeView(_edgeTex);
-	texture_view<float, 2> tangentView(_tangentTex);
+	texture_view<float_2, 2> tangentView(_tangentTex);
 	texture_view<const unorm, 2> redTex(_redTex);
 	texture_view<const unorm_4, 2> inputTex(_targetImage);
 	parallel_for_each(_acc_view, redTex.extent, [redTex, edgeView, inputTex, tangentView, radius](index<2> index) restrict(amp)
@@ -160,7 +158,7 @@ void FeatureExtractor::FindEdgesAndTangent()
 		edgeView.set(index, edge);
 
 		if (edge > 0.f)
-			tangentView.set(index, CalculateTangent(redTex, index));
+			tangentView.set(index, CalculateTangent(inputTex, index));
 	});
 }
 
@@ -205,10 +203,10 @@ void FeatureExtractor::AbsorbRedTexels()
 		const float_2 p(index[1] + 0.5f, index[0] + 0.5f);
 		if (redReader.sample<filter_point>(coord(p, redReader.extent)) == 0.f)
 		{
-			if (redReader.sample<filter_point>(coord(p + float_2(-1, +0), redReader.extent)) != 0.f ||
+			if (redReader.sample<filter_point>(coord(p + float_2(-1, +0), redReader.extent)) != 0.f &&
 				redReader.sample<filter_point>(coord(p + float_2(+1, +0), redReader.extent)) != 0.f)
 				tmpWriter.set(index, unorm(1.f));
-			else if (redReader.sample<filter_point>(coord(p + float_2(+0, -1), redReader.extent)) != 0.f ||
+			else if (redReader.sample<filter_point>(coord(p + float_2(+0, -1), redReader.extent)) != 0.f &&
 				redReader.sample<filter_point>(coord(p + float_2(+0, +1), redReader.extent)) != 0.f)
 				tmpWriter.set(index, unorm(1.f));
 		}
@@ -219,67 +217,105 @@ void FeatureExtractor::AbsorbRedTexels()
 	copy(tmpTex, _redTex);
 }
 
-task<void> FeatureExtractor::FindEllipses()
+concurrency::array_view<const EllipsePoints, 1> FeatureExtractor::AbsorbEllipsePointPairs(uint32_t& count)
 {
-	float height = _targetImageExtent[0];
+	const float height = _targetImageExtent[0];
+	array_view<uint, 2> outputTex(_outputTex);
 
-	array<uint, 1> edgePointsCount(1, &zero, _acc_view, access_type_read);
-	array<index<2>, 2> edgePositions(_targetImageExtent, _acc_view);
 	texture_view<const unorm, 2> edgeView(_edgeTex);
+	array<uint, 1> edgePointsCount(1, &zero, _acc_view, access_type_read);
+	array_view<index<2>, 1> edgePositionsView(_edgePositions);
 
-	parallel_for_each(_acc_view, edgeView.extent, [&edgePointsCount, &edgePositions, edgeView](index<2> index) restrict(amp)
+	parallel_for_each(_acc_view, edgeView.extent, [=, &edgePointsCount](index<2> index) restrict(amp)
 	{
 		if (edgeView[index] != 0.f)
 		{
 			auto idx = atomic_fetch_add(&edgePointsCount(0), 1);
-			auto x = idx % edgeView.extent[1];
-			auto y = idx / edgeView.extent[1];
-			edgePositions(y, x) = index;
+			edgePositionsView(idx) = index;
 		}
 	});
 
-	const auto edgeSize = extent<1>(edgePointsCount(0));
-	const auto maxEllipses = extent<1>(std::min(edgeSize[0] * 100, 50000));
-
-	typedef sobol_rng<5>::sobol_number<float> sobol_float_number;
-	sobol_rng_collection<sobol_rng<5>, 1> sc_rng(_acc_view, maxEllipses, 1);
-	concurrency::graphics::texture_view<const float, 2> tangentView(_tangentTex);
+	_edgePointsCount = edgePointsCount(0);
+	const auto edgeSize = extent<1>(_edgePointsCount);
+	const auto maxPointPairs = extent<1>(edgeSize * 10);
 	array<uint32_t, 1> fitsCount(1, &zero, _acc_view, access_type_read);
-	array<EllipseParam, 1> ellipses(maxEllipses, _acc_view);
+	array<EllipsePoints, 1> ellipses(maxPointPairs, _acc_view);
 
-	parallel_for_each(_acc_view, maxEllipses, [=, &edgePositions, &fitsCount, &ellipses](index<1> idx) restrict(amp)
+	sobol_rng_collection<sobol_rng<2>, 1> sc_rng(_acc_view, maxPointPairs, 1);
+	concurrency::graphics::texture_view<const float_2, 2> tangentView(_tangentTex);
+	parallel_for_each(_acc_view, maxPointPairs, [=, &fitsCount, &ellipses](index<1> idx) restrict(amp)
 	{
 		// Get the sobol RNG 
 		auto rng = sc_rng[idx];
 		// Skip ahead to the right position
 		rng.skip(sc_rng.direction_numbers(), idx[0]);
 
-		float_2 points[5];
-		for (uint32_t i = 0; i < 5; i++)
+		float_2 points[2];
+		float_2 tangent[2];
+		for (uint32_t i = 0; i < 2; i++)
 		{
-			const auto id2 = int(rng.get_single(i + 1) * edgeSize[0]);
-			const auto x2 = id2 % edgeView.extent[1];
-			const auto y2 = id2 / edgeView.extent[1];
-			const auto p2Index = edgePositions(y2, x2);
-			points[i] = float_2(p2Index[1], edgeView.extent[0] - p2Index[0]);
+			const auto id = int(fast_math::round(rng.get_single(i + 1) * edgeSize[0]));
+			const auto ptIndex = edgePositionsView(id);
+			points[i] = float_2(ptIndex[1], height - ptIndex[0]);
+			tangent[i] = tangentView(ptIndex);
 		}
+		EllipsePoints ePoint;
+		if (FindEllipsePoints(points, tangent, edgeView, tangentView, ePoint))
+		{
+			ellipses(atomic_fetch_add(&fitsCount(0), 1)) = ePoint;
+			outputTex(index<2>(height - ePoint.p1.y, ePoint.p1.x)) = 0xFF00FF00;
+			outputTex(index<2>(height - ePoint.p2.y, ePoint.p2.x)) = 0xFF00FF00;
+			outputTex(index<2>(height - ePoint.p3.y, ePoint.p3.x)) = 0xFF00FF00;
+		}
+	});
+	count = fitsCount[0];
 
-		FitEllipse(points, edgeView.extent[1], edgeView.extent[0], fitsCount, ellipses);
+	return ellipses;
+}
+
+task<void> FeatureExtractor::FindEllipses()
+{
+	const float height = _targetImageExtent[0];
+	const float width = _targetImageExtent[1];
+	array_view<uint, 2> outputTex(_outputTex);
+	uint32_t pointsPairCount;
+	auto pointsPairView = AbsorbEllipsePointPairs(pointsPairCount);
+	const auto maxFitTimes = extent<1>(pointsPairCount * 100);
+
+	array<uint32_t, 1> fitsCount(1, &zero, _acc_view, access_type_read);
+	array<EllipseParam, 1> ellipses(maxFitTimes, _acc_view);
+
+	static const uint32_t N = 5;
+	sobol_rng_collection<sobol_rng<N>, 1> sc_rng(_acc_view, maxFitTimes, 1);
+
+	parallel_for_each(_acc_view, maxFitTimes, [=, &fitsCount, &ellipses](index<1> idx) restrict(amp)
+	{
+		// Get the sobol RNG 
+		auto rng = sc_rng[idx];
+		// Skip ahead to the right position
+		rng.skip(sc_rng.direction_numbers(), idx[0]);
+		float_2 points[N];
+		for (uint32_t i = 0; i < N; i++)
+		{
+			const auto id = int(fast_math::round(rng.get_single(i + 1) * pointsPairCount));
+			const auto pair = pointsPairView(id);
+			points[i] = pair.p1;
+		}
+		FitEllipse(points, width, height, fitsCount, ellipses);
 	});
 	const auto ellipseCount = fitsCount(0);
+	array_view<index<2>, 1> edgePositionsView(_edgePositions);
+	const auto edgeSize = extent<1>(_edgePointsCount);
 
-	parallel_for_each(_acc_view, edgeSize, [=, &fitsCount, &ellipses, &edgePositions](index<1> index)restrict(amp)
+	parallel_for_each(_acc_view, edgeSize, [=, &fitsCount, &ellipses](index<1> index)restrict(amp)
 	{
-		const auto id1 = index[0];
-		const auto x1 = id1 % edgeView.extent[1];
-		const auto y1 = id1 / edgeView.extent[1];
-		const auto p1 = edgePositions(y1, x1);
+		const auto p1 = edgePositionsView(index[0]);
+		const float_2 point(p1[1], height - p1[0]);
 
 		const auto ellipseCount = fitsCount(0);
 		for (uint32_t i = 0; i < ellipseCount; i++)
 		{
 			auto& ellipse = ellipses(i);
-			const float_2 point(p1[1], height - p1[0]);
 			if (OnEllipse(ellipse, point, 0.8f))
 				atomic_fetch_add(&ellipse.rank, 1);
 		}
@@ -296,12 +332,12 @@ task<void> FeatureExtractor::FindEllipses()
 
 		_ellipsesFit.clear();
 		_ellipsesFit.reserve(ellipseCount);
-		const float lambda = 0.6f;
+		const float lambda = 0.5f;
 		for (auto&& it : ellipsesSort)
 		{
-			auto min = lambda * 3.14f * (1.5f * (it.a + it.b) - fast_math::sqrt(it.a * it.b));
+			const auto min = lambda * it.length;
 			if (it.a > 10.f && it.b > 10.f && it.rank >= min)
-				if(!std::any_of(_ellipsesFit.begin(), _ellipsesFit.end(), [&](const EllipseParam& el)
+				if (!std::any_of(_ellipsesFit.begin(), _ellipsesFit.end(), [&](const EllipseParam& el)
 				{
 					if (el.id != it.id &&
 						fabs(el.x - it.x) < 3.f && fabs(el.y - it.y) < 3.f)
@@ -314,42 +350,6 @@ task<void> FeatureExtractor::FindEllipses()
 
 		FillCircleSignTargetsSource();
 		CalculateZernike();
-
-		//for (auto&& el : _ellipsesFit)
-		//{
-		//	texture_view<const unorm_4, 2> inputTex(_targetImage);
-		//	array_view<uint, 2> outputTex(_outputTex);
-		//	array<uint32_t, 1> graySum(1, &zero, _acc_view);
-		//	parallel_for_each(_acc_view, _targetImageExtent, [=, &graySum](index<2> index) restrict(amp)
-		//	{
-		//		const float_2 pt(index[1], height - index[0]);
-		//		if (InEllipse(el, pt))
-		//		{
-		//			atomic_fetch_add(&graySum[0], Grayscale(inputTex[index]) * 255);
-		//		}
-		//	});
-		//	parallel_for_each(_acc_view, _targetImageExtent, [=, &graySum](index<2> index) restrict(amp)
-		//	{
-		//		const float threhold = graySum[0] / float(el.area) / 255.f;
-		//		const float_2 pt(index[1], height - index[0]);
-		//		if (InEllipse(el, pt))
-		//		{
-		//			const uint r = inputTex[index].r * 255;
-		//			const uint g = inputTex[index].g * 255;
-		//			const uint b = inputTex[index].b * 255;
-
-		//			const float x = (pt.x - el.x);
-		//			const float y = (pt.y - el.y);
-		//			float x2 = x * fast_math::cos(-el.theta) - y * fast_math::sin(-el.theta);
-		//			float y2 = x * fast_math::sin(-el.theta) + y * fast_math::cos(-el.theta);
-		//			x2 = x2 / el.a * 50.f;
-		//			y2 = y2 / el.b * 50.f;
-		//			if (Grayscale(inputTex[index]) < threhold)
-		//				outputTex(index) = uint(0xFFFFFFFF);
-		//			//outputTex(index) = uint(0xFF000000 | (r << 16) | (g << 8) | b);
-		//		}
-		//	});
-		//}
 	}
 
 	return task_from_result();
@@ -373,6 +373,9 @@ void FeatureExtractor::FillCircleSignTargetsSource()
 				atomic_fetch_add(&graySum[0], Grayscale(inputTex[index]) * 255);
 		});
 
+		const auto scale = std::round(std::min(el.a, el.b) * 2.f);
+		texture<unorm, 2> ellipseTex(extent<2>(scale, scale), 8, _acc_view);
+		texture_view<unorm, 2> ellipseTexWriter(ellipseTex);
 		parallel_for_each(_acc_view, _targetImageExtent, [=, &points, &pointsCount, &graySum](index<2> index) restrict(amp)
 		{
 			const float threhold = graySum[0] / float(el.area) / 255.f / 1.5f;
@@ -387,60 +390,79 @@ void FeatureExtractor::FillCircleSignTargetsSource()
 						coord1.x * fast_math::sin(-el.theta) + coord1.y * fast_math::cos(-el.theta));
 					coord2 /= float_2(el.a, el.b);
 
-					UnitCirclePoint point{ unorm(fast_math::sqrt(coord2.x * coord2.x + coord2.y * coord2.y)),
-						fast_math::atan2(coord2.y, coord2.x) };
-					if (point.rho < 0.9f)
+					const auto rho = unorm(fast_math::sqrt(coord2.x * coord2.x + coord2.y * coord2.y));
+					if (rho < 0.9f)
 					{
-						const auto id = atomic_fetch_add(&pointsCount[0], 1);
-						points[id] = point;
+						coord2 = (coord2 / 2 + 0.5f) * scale;
+						ellipseTexWriter.set(concurrency::index<2>(fast_math::round(scale - coord2.y), fast_math::round(coord2.x)), unorm(1.0));
 					}
 				}
 			}
 		});
-		_circleSignTargetsSource.emplace_back(pointsCount[0], std::move(points), el.area);
+		_circleSignTargetsSource.emplace_back(ellipseTex);
+		break;
 	}
 }
 
-static std::array<int_2, 9> mnPairs = {
-	int_2(1, 1),int_2(2, 0),int_2(3, 1),
-	int_2(4, 0),int_2(4, 2),int_2(5, 3),
-	int_2(6, 2),int_2(7, 3),int_2(7, 5),
+//static std::array<int_2, 9> mnPairs = {
+//	int_2(1, 1),int_2(2, 0),int_2(3, 1),
+//	int_2(4, 0),int_2(4, 2),int_2(5, 3),
+//	int_2(6, 2),int_2(7, 3),int_2(7, 5),
+//};
+static std::array<int_2, 11> mnPairs = {
+	int_2(1, 1),int_2(2, 0),int_2(2, 2),
+	int_2(3, 1),int_2(3, 3),int_2(4, 0),
+	int_2(4, 2),int_2(4, 4),int_2(5, 1),
+	int_2(5, 3),int_2(5, 5)
 };
 
 void FeatureExtractor::CalculateZernike()
 {
+	static const float RhoScale = 50;
+	static const float ThetaScale = 100;
+
 	_circleSignZernikes.clear();
 	_circleSignZernikes.resize(_circleSignTargetsSource.size());
 	size_t cntId = 0;
 	for (auto&& target : _circleSignTargetsSource)
 	{
-		const float area = target.area;
-		const auto pointsCount = extent<1>(target.pointsCount);
-		array_view<UnitCirclePoint, 1> pointsView(target.points);
+		extent<2> sampleExtent(1.f * RhoScale, 6.28f * ThetaScale);
 		array_view<uint, 2> outputTex(_outputTex);
-		array<double, 1> V(pointsCount, _acc_view), Vj(pointsCount, _acc_view);
+		array<double, 1> V(sampleExtent.size(), _acc_view), Vj(sampleExtent.size(), _acc_view);
 		for (size_t i = 0; i < mnPairs.size(); i++)
 		{
 			const auto p = mnPairs[i].x;
 			const int q = mnPairs[i].y;
-			parallel_for_each(_acc_view, pointsCount, [=, &V, &Vj](index<1> index) restrict(amp)
+			parallel_for_each(_acc_view, sampleExtent, [=, &V, &Vj](index<2> index) restrict(amp)
 			{
-				const auto point = pointsView[index];
-				auto r = ZernikeR(p, q, 1.0 - point.rho);
-				auto v = ZernikeV(r, q, point.theta);
-				V[index] = v.x;
-				Vj[index] = v.y;
-				//const auto x = point.rho * fast_math::cos(point.theta) * 20.f + outputTex.extent[1] / 2.f;
-				//const auto y = point.rho * fast_math::sin(point.theta) * 20.f + outputTex.extent[0] / 2.f;
-				//outputTex(outputTex.extent[0] - y, x) = uint(0xFFFFFFFF);
+				const auto rho = index[0] / RhoScale;
+				const auto theta = index[1] / ThetaScale - 3.14f;
+				const auto x = rho * fast_math::cos(theta) / 2.f + 0.5f;
+				const auto y = 1.f - (rho * fast_math::sin(theta) / 2.f + 0.5f);
+				concurrency::index<1> id(sampleExtent[1] * index[0] + index[1]);
+
+				const auto mx = rho * fast_math::cos(theta) * 20.f + outputTex.extent[1] / 2.f;
+				const auto my = rho * fast_math::sin(theta) * 20.f + outputTex.extent[0] / 2.f;
+				if (target.sample<filter_point>(float_2(x, y)) == 1.f)
+				{
+					outputTex(outputTex.extent[0] - my, mx) = uint(0xFFFFFFFF);
+					auto r = ZernikeR(p, q, rho);
+					auto v = ZernikeV(r, q, theta);
+					V[id] = v.x;
+					Vj[id] = v.y;
+				}
+				else
+				{
+					V[id] = Vj[id] = 0;
+				}
 			});
 
 			const std::vector<double> cpuV(V), cpuVj(Vj);
 			concurrency::combinable<double> cbV, cbVj;
 			parallel_for_each(cpuV.begin(), cpuV.end(), [&](double value) {cbV.local() += value;});
 			parallel_for_each(cpuVj.begin(), cpuVj.end(), [&](double value) {cbVj.local() += value;});
-			const auto sV = cbV.combine(std::plus<double>()) * (p + 1) / 3.1415 / pointsCount[0];
-			const auto sVj = cbVj.combine(std::plus<double>()) * (p + 1) / 3.1415 / pointsCount[0];
+			const auto sV = cbV.combine(std::plus<double>()) * (p + 1) / 3.1415 / (RhoScale * ThetaScale);
+			const auto sVj = cbVj.combine(std::plus<double>()) * (p + 1) / 3.1415 / (RhoScale * ThetaScale);
 			const auto Z = sqrt(sV * sV + sVj * sVj);
 			_circleSignZernikes[cntId][i] = { uint32_t(p), q, (float)Z };
 		}

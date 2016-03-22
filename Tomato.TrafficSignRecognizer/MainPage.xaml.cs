@@ -79,7 +79,7 @@ namespace Tomato.TrafficSignRecognizer
         private async Task LoadFeatures(int label)
         {
             List<float[]> features = new List<float[]>();
-            for (int i = 0; i < 11; i++)
+            for (int i = 0; i < 15; i++)
             {
                 var feature = await ExtractFeature(label, i);
                 if (feature != null)
