@@ -418,15 +418,15 @@ static std::array<int_2, 11> mnPairs = {
 
 void FeatureExtractor::CalculateZernike()
 {
-	static const float RhoScale = 50;
-	static const float ThetaScale = 100;
+	static const float r = 50;
+	static const auto area = 3.14 * r * r;
 
 	_circleSignZernikes.clear();
 	_circleSignZernikes.resize(_circleSignTargetsSource.size());
 	size_t cntId = 0;
 	for (auto&& target : _circleSignTargetsSource)
 	{
-		extent<2> sampleExtent(1.f * RhoScale, 6.28f * ThetaScale);
+		extent<2> sampleExtent(r * 2, r * 2);
 		array_view<uint, 2> outputTex(_outputTex);
 		array<double, 1> V(sampleExtent.size(), _acc_view), Vj(sampleExtent.size(), _acc_view);
 		for (size_t i = 0; i < mnPairs.size(); i++)
@@ -435,25 +435,27 @@ void FeatureExtractor::CalculateZernike()
 			const int q = mnPairs[i].y;
 			parallel_for_each(_acc_view, sampleExtent, [=, &V, &Vj](index<2> index) restrict(amp)
 			{
-				const auto rho = index[0] / RhoScale;
-				const auto theta = index[1] / ThetaScale - 3.14f;
-				const auto x = rho * fast_math::cos(theta) / 2.f + 0.5f;
-				const auto y = 1.f - (rho * fast_math::sin(theta) / 2.f + 0.5f);
+				const auto x = (index[1] - r) / r;
+				const auto y = (index[0] - r) / r;
 				concurrency::index<1> id(sampleExtent[1] * index[0] + index[1]);
+				V[id] = Vj[id] = 0;
+				if (x != 0)
+				{
+					const auto rho = fast_math::sqrt(x * x + y * y);
+					const auto theta = fast_math::atan2(y, x);
 
-				const auto mx = rho * fast_math::cos(theta) * 20.f + outputTex.extent[1] / 2.f;
-				const auto my = rho * fast_math::sin(theta) * 20.f + outputTex.extent[0] / 2.f;
-				if (target.sample<filter_point>(float_2(x, y)) == 1.f)
-				{
-					outputTex(outputTex.extent[0] - my, mx) = uint(0xFFFFFFFF);
-					auto r = ZernikeR(p, q, rho);
-					auto v = ZernikeV(r, q, theta);
-					V[id] = v.x;
-					Vj[id] = v.y;
-				}
-				else
-				{
-					V[id] = Vj[id] = 0;
+					const auto mx = rho * fast_math::cos(theta) * 20.f + outputTex.extent[1] / 2.f;
+					const auto my = rho * fast_math::sin(theta) * 20.f + outputTex.extent[0] / 2.f;
+					const auto u = x / 2 + 0.5f;
+					const auto v = -y / 2 + 0.5f;
+					if (rho < 1.f && target.sample<filter_point>(float_2(u, v)) == 1.f)
+					{
+						outputTex(outputTex.extent[0] - my, mx) = uint(0xFFFFFFFF);
+						auto r = ZernikeR(p, q, rho);
+						auto v = ZernikeV(r, q, theta);
+						V[id] = v.x;
+						Vj[id] = v.y;
+					}
 				}
 			});
 
@@ -461,8 +463,8 @@ void FeatureExtractor::CalculateZernike()
 			concurrency::combinable<double> cbV, cbVj;
 			parallel_for_each(cpuV.begin(), cpuV.end(), [&](double value) {cbV.local() += value;});
 			parallel_for_each(cpuVj.begin(), cpuVj.end(), [&](double value) {cbVj.local() += value;});
-			const auto sV = cbV.combine(std::plus<double>()) * (p + 1) / 3.1415 / (RhoScale * ThetaScale);
-			const auto sVj = cbVj.combine(std::plus<double>()) * (p + 1) / 3.1415 / (RhoScale * ThetaScale);
+			const auto sV = cbV.combine(std::plus<double>()) * (p + 1) / 3.1415 / area;
+			const auto sVj = cbVj.combine(std::plus<double>()) * (p + 1) / 3.1415 / area;
 			const auto Z = sqrt(sV * sV + sVj * sVj);
 			_circleSignZernikes[cntId][i] = { uint32_t(p), q, (float)Z };
 		}
