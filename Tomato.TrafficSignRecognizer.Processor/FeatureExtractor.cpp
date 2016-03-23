@@ -114,7 +114,7 @@ concurrency::task<void> FeatureExtractor::FindContours()
 	{
 		parallel_for_each(_acc_view, _targetImageExtent, [redTex, outputTex, tangents, edges](index<2> index) restrict(amp)
 		{
-			//const auto gray = fast_math::sin(fast_math::atan(tangents[index]));
+			//const auto gray = precise_math::sin(precise_math::atan(tangents[index]));
 			//if (gray < 0)
 			//{
 			//	auto lastGray = uint(-gray * 255);
@@ -190,9 +190,10 @@ void FeatureExtractor::AbsorbRedTexels()
 				if (++hasCount >= 5)
 				{
 					redTex.set(index, unorm(1.f));
-					break;
+					return;
 				}
 		}
+		redTex.set(index, unorm(0.f));
 	});
 
 	texture_view<const unorm, 2> redReader(_redTex);
@@ -254,7 +255,7 @@ concurrency::array_view<const EllipsePoints, 1> FeatureExtractor::AbsorbEllipseP
 		float_2 tangent[2];
 		for (uint32_t i = 0; i < 2; i++)
 		{
-			const auto id = int(fast_math::round(rng.get_single(i + 1) * edgeSize[0]));
+			const auto id = int(precise_math::round(rng.get_single(i + 1) * edgeSize[0]));
 			const auto ptIndex = edgePositionsView(id);
 			points[i] = float_2(ptIndex[1], height - ptIndex[0]);
 			tangent[i] = tangentView(ptIndex);
@@ -263,9 +264,6 @@ concurrency::array_view<const EllipsePoints, 1> FeatureExtractor::AbsorbEllipseP
 		if (FindEllipsePoints(points, tangent, edgeView, tangentView, ePoint))
 		{
 			ellipses(atomic_fetch_add(&fitsCount(0), 1)) = ePoint;
-			outputTex(index<2>(height - ePoint.p1.y, ePoint.p1.x)) = 0xFF00FF00;
-			outputTex(index<2>(height - ePoint.p2.y, ePoint.p2.x)) = 0xFF00FF00;
-			outputTex(index<2>(height - ePoint.p3.y, ePoint.p3.x)) = 0xFF00FF00;
 		}
 	});
 	count = fitsCount[0];
@@ -275,17 +273,17 @@ concurrency::array_view<const EllipsePoints, 1> FeatureExtractor::AbsorbEllipseP
 
 task<void> FeatureExtractor::FindEllipses()
 {
-	const float height = _targetImageExtent[0];
-	const float width = _targetImageExtent[1];
+	const double height = _targetImageExtent[0];
+	const double width = _targetImageExtent[1];
 	array_view<uint, 2> outputTex(_outputTex);
 	uint32_t pointsPairCount;
 	auto pointsPairView = AbsorbEllipsePointPairs(pointsPairCount);
-	const auto maxFitTimes = extent<1>(pointsPairCount * 100);
+	const auto maxFitTimes = extent<1>(pointsPairCount * 10);
 
 	array<uint32_t, 1> fitsCount(1, &zero, _acc_view, access_type_read);
 	array<EllipseParam, 1> ellipses(maxFitTimes, _acc_view);
 
-	static const uint32_t N = 5;
+	static const uint32_t N = 2;
 	sobol_rng_collection<sobol_rng<N>, 1> sc_rng(_acc_view, maxFitTimes, 1);
 
 	parallel_for_each(_acc_view, maxFitTimes, [=, &fitsCount, &ellipses](index<1> idx) restrict(amp)
@@ -294,16 +292,24 @@ task<void> FeatureExtractor::FindEllipses()
 		auto rng = sc_rng[idx];
 		// Skip ahead to the right position
 		rng.skip(sc_rng.direction_numbers(), idx[0]);
-		float_2 points[N];
+		float_2 points[N * 3];
 		for (uint32_t i = 0; i < N; i++)
 		{
-			const auto id = int(fast_math::round(rng.get_single(i + 1) * pointsPairCount));
+			const auto id = int(precise_math::round(rng.get_single(i + 1) * pointsPairCount));
 			const auto pair = pointsPairView(id);
-			points[i] = pair.p1;
+			points[i * 3] = pair.p1;
+			points[i * 3 + 1] = pair.p2;
+			points[i * 3 + 2] = pair.p3;
+			outputTex(index<2>(height - pair.p1.y, pair.p1.x)) = 0xFF00FF00;
 		}
-		FitEllipse(points, width, height, fitsCount, ellipses);
+		EllipseParam ellipse;
+		if (FitEllipse(points, width, height, ellipse))
+		{
+			auto id = atomic_fetch_add(&fitsCount(0), 1);
+			ellipse.id = id;
+			ellipses(id) = ellipse;
+		}
 	});
-	const auto ellipseCount = fitsCount(0);
 	array_view<index<2>, 1> edgePositionsView(_edgePositions);
 	const auto edgeSize = extent<1>(_edgePointsCount);
 
@@ -312,8 +318,8 @@ task<void> FeatureExtractor::FindEllipses()
 		const auto p1 = edgePositionsView(index[0]);
 		const float_2 point(p1[1], height - p1[0]);
 
-		const auto ellipseCount = fitsCount(0);
-		for (uint32_t i = 0; i < ellipseCount; i++)
+		const auto count = fitsCount(0);
+		for (uint32_t i = 0; i < count; i++)
 		{
 			auto& ellipse = ellipses(i);
 			if (OnEllipse(ellipse, point, 0.8f))
@@ -321,6 +327,7 @@ task<void> FeatureExtractor::FindEllipses()
 		}
 	});
 
+	const auto ellipseCount = fitsCount(0);
 	if (ellipseCount)
 	{
 		std::vector<EllipseParam> ellipsesSort(ellipseCount);
@@ -336,7 +343,7 @@ task<void> FeatureExtractor::FindEllipses()
 		for (auto&& it : ellipsesSort)
 		{
 			const auto min = lambda * it.length;
-			if (it.a > 10.f && it.b > 10.f && it.rank >= min)
+			if (it.rank >= min)
 				if (!std::any_of(_ellipsesFit.begin(), _ellipsesFit.end(), [&](const EllipseParam& el)
 				{
 					if (el.id != it.id &&
@@ -355,6 +362,9 @@ task<void> FeatureExtractor::FindEllipses()
 	return task_from_result();
 }
 
+static const uint32_t zero256[256] = { 0 };
+static const uint_2 zero256_2[256] = { 0 };
+
 void FeatureExtractor::FillCircleSignTargetsSource()
 {
 	float height = _targetImageExtent[0];
@@ -365,40 +375,49 @@ void FeatureExtractor::FillCircleSignTargetsSource()
 	{
 		array<UnitCirclePoint, 1> points(el.area, _acc_view);
 		array<uint32_t, 1> pointsCount(1, &zero, _acc_view, access_type_read);
-		array<uint32_t, 1> graySum(1, &zero, _acc_view);
-		parallel_for_each(_acc_view, _targetImageExtent, [=, &graySum](index<2> index) restrict(amp)
+		float threshold;
+
+		// 二值化
 		{
-			const float_2 pt(index[1], height - index[0]);
-			if (InEllipse(el, pt))
-				atomic_fetch_add(&graySum[0], Grayscale(inputTex[index]) * 255);
-		});
+			// 每个灰级的数量
+			array<uint32_t, 1> grayLevels(256, zero256, _acc_view, access_type_read);
+			parallel_for_each(_acc_view, _targetImageExtent, [=, &grayLevels](index<2> index) restrict(amp)
+			{
+				const float_2 pt(index[1], height - index[0]);
+				if (InEllipse(el, pt))
+					atomic_fetch_add(&grayLevels[Grayscale(inputTex[index]) * 255], 1);
+			});
+			const std::vector<uint32_t> cpuGrayLevels(grayLevels);
+			threshold = GetOSTUThreshold(cpuGrayLevels) / 255.f;
+		}
 
 		const auto scale = std::round(std::min(el.a, el.b) * 2.f);
 		texture<unorm, 2> ellipseTex(extent<2>(scale, scale), 8, _acc_view);
-		texture_view<unorm, 2> ellipseTexWriter(ellipseTex);
-		parallel_for_each(_acc_view, _targetImageExtent, [=, &points, &pointsCount, &graySum](index<2> index) restrict(amp)
 		{
-			const float threhold = graySum[0] / float(el.area) / 255.f / 1.5f;
-			const float_2 pt(index[1], height - index[0]);
-			if (InEllipse(el, pt))
+			texture_view<unorm, 2> ellipseTexWriter(ellipseTex);
+			parallel_for_each(_acc_view, _targetImageExtent, [=, &points, &pointsCount](index<2> index) restrict(amp)
 			{
-				const auto sum = float(atomic_fetch_add(&graySum[0], Grayscale(inputTex[index]) * 255));
-				if (Grayscale(inputTex[index]) < threhold)
+				const float_2 pt(index[1], height - index[0]);
+				if (InEllipse(el, pt))
 				{
-					const float_2 coord1(pt.x - el.x, pt.y - el.y);
-					float_2 coord2(coord1.x * fast_math::cos(-el.theta) - coord1.y * fast_math::sin(-el.theta),
-						coord1.x * fast_math::sin(-el.theta) + coord1.y * fast_math::cos(-el.theta));
-					coord2 /= float_2(el.a, el.b);
-
-					const auto rho = unorm(fast_math::sqrt(coord2.x * coord2.x + coord2.y * coord2.y));
-					if (rho < 0.9f)
+					if (!IsRed(inputTex[index]) && Grayscale(inputTex[index]) < threshold)
 					{
-						coord2 = (coord2 / 2 + 0.5f) * scale;
-						ellipseTexWriter.set(concurrency::index<2>(fast_math::round(scale - coord2.y), fast_math::round(coord2.x)), unorm(1.0));
+						const double_2 coord1(pt.x - el.x, pt.y - el.y);
+						double_2 coord2(coord1.x * precise_math::cos(-el.theta) - coord1.y * precise_math::sin(-el.theta),
+							coord1.x * precise_math::sin(-el.theta) + coord1.y * precise_math::cos(-el.theta));
+						coord2 /= double_2(el.a, el.b);
+
+						const auto rho = unorm(precise_math::sqrt(coord2.x * coord2.x + coord2.y * coord2.y));
+						if (rho < 0.7f)
+						{
+							coord2 = (coord2 / 2 + 0.5) * scale;
+							ellipseTexWriter.set(concurrency::index<2>(precise_math::round(scale - coord2.y), precise_math::round(coord2.x)), unorm(1.0));
+						}
 					}
 				}
-			}
-		});
+			});
+		}
+
 		_circleSignTargetsSource.emplace_back(ellipseTex);
 		break;
 	}
@@ -418,7 +437,7 @@ static std::array<int_2, 11> mnPairs = {
 
 void FeatureExtractor::CalculateZernike()
 {
-	static const float r = 50;
+	static const double r = 50;
 	static const auto area = 3.14 * r * r;
 
 	_circleSignZernikes.clear();
@@ -441,14 +460,14 @@ void FeatureExtractor::CalculateZernike()
 				V[id] = Vj[id] = 0;
 				if (x != 0)
 				{
-					const auto rho = fast_math::sqrt(x * x + y * y);
-					const auto theta = fast_math::atan2(y, x);
+					const auto rho = precise_math::sqrt(x * x + y * y) / 0.7;
+					const auto theta = precise_math::atan2(y, x);
 
-					const auto mx = rho * fast_math::cos(theta) * 20.f + outputTex.extent[1] / 2.f;
-					const auto my = rho * fast_math::sin(theta) * 20.f + outputTex.extent[0] / 2.f;
-					const auto u = x / 2 + 0.5f;
-					const auto v = -y / 2 + 0.5f;
-					if (rho < 1.f && target.sample<filter_point>(float_2(u, v)) == 1.f)
+					const auto mx = rho * precise_math::cos(theta) * 20.f + outputTex.extent[1] / 2.f;
+					const auto my = rho * precise_math::sin(theta) * 20.f + outputTex.extent[0] / 2.f;
+					const auto u = x / 2 + 0.5;
+					const auto v = -y / 2 + 0.5;
+					if (rho < 1.0 && target.sample<filter_point>(float_2(u, v)) == 1.f)
 					{
 						outputTex(outputTex.extent[0] - my, mx) = uint(0xFFFFFFFF);
 						auto r = ZernikeR(p, q, rho);

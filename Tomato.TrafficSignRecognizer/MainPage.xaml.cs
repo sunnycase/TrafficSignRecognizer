@@ -30,7 +30,7 @@ namespace Tomato.TrafficSignRecognizer
     public sealed partial class MainPage : Page
     {
         readonly Dictionary<int, List<float[]>> features = new Dictionary<int, List<float[]>>();
-
+        int count = 0;
         public MainPage()
         {
             this.InitializeComponent();
@@ -39,8 +39,13 @@ namespace Tomato.TrafficSignRecognizer
 
         private async void MainPage_Loaded(object sender, RoutedEventArgs e)
         {
+            pb_Feature.Maximum = 2 * 6;
+            var watch = new Stopwatch();
+            watch.Start();
             await LoadFeatures();
             WriteTrainData();
+            watch.Stop();
+            tb_Status.Text = $"共提取 {count} 张图片，耗时 {watch.Elapsed}";
             //var zernikes = (await ext.CaculateZernikes()).Select(o => o.ToList()).ToList();
             //zernikes.ToString();
             //var outputFile = await ApplicationData.Current.LocalCacheFolder.CreateFileAsync("output.jpg", CreationCollisionOption.ReplaceExisting);
@@ -63,6 +68,7 @@ namespace Tomato.TrafficSignRecognizer
                     }
                 }
                 await dataWriter.StoreAsync();
+                await dataWriter.FlushAsync();
             }
             var msg = new MessageDialog("Feature extraction completed.");
             await msg.ShowAsync();
@@ -79,12 +85,14 @@ namespace Tomato.TrafficSignRecognizer
         private async Task LoadFeatures(int label)
         {
             List<float[]> features = new List<float[]>();
-            for (int i = 0; i < 15; i++)
+            for (int i = 21; i < 27; i++)
             {
                 var feature = await ExtractFeature(label, i);
                 if (feature != null)
                     features.Add(feature);
                 Debug.WriteLine($"Label: {label} Id: {i}");
+                pb_Feature.Value++;
+                count++;
             }
             this.features.Add(label, features);
         }

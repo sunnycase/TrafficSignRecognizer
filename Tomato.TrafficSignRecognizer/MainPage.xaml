@@ -8,6 +8,7 @@
     mc:Ignorable="d">
 
     <Grid Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
-
+        <ProgressBar x:Name="pb_Feature"/>
+        <TextBlock x:Name="tb_Status"/>
     </Grid>
 </Page>

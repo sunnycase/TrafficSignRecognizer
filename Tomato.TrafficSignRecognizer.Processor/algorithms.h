@@ -28,6 +28,7 @@ double ZernikeR(int p, int q, double rho) restrict(cpu, amp);
 concurrency::graphics::double_2 ZernikeV(double r, int q, double theta) restrict(cpu, amp);
 int factorial(uint32_t n) restrict(cpu, amp);
 int powneg1(uint32_t n) restrict(cpu, amp);
+uint32_t GetOSTUThreshold(const std::vector<uint32_t>& histGram);
 
 // 解一元二次方程
 bool Solve(float a, float b, float c, float(&x)[2]) restrict(cpu, amp);
@@ -106,12 +107,12 @@ bool Solve(T(&mat)[M][N]) restrict(cpu, amp)
 }
 
 template<uint32_t N>
-bool FitEllipse(concurrency::graphics::float_2(&points)[N], float width, float height, concurrency::array<uint32_t, 1>& fitsCount, concurrency::array<EllipseParam, 1>& ellipses) restrict(amp)
+bool FitEllipse(concurrency::graphics::float_2(&points)[N], double width, double height, EllipseParam& ellipse) restrict(amp)
 {
 	using namespace concurrency;
 
-	float U[N][5];
-	float UT[5][N];
+	double U[N][5];
+	double UT[5][N];
 	for (uint32_t i = 0; i < N; i++)
 	{
 		const auto& point = points[i];
@@ -131,51 +132,52 @@ bool FitEllipse(concurrency::graphics::float_2(&points)[N], float width, float h
 
 	// UT x U 形成 5 x 5 矩阵
 	// UT x V 形成 5 x 1 矩阵
-	float mat[5][5 + 1];
+	double mat[5][5 + 1];
 	for (uint32_t i = 0; i < 5; i++)
 	{
 		for (uint32_t j = 0; j < 5; j++)
 		{
-			float sum = 0;
+			double sum = 0;
 			for (uint32_t k = 0; k < N; k++)
 				sum += UT[i][k] * U[k][j];
 			mat[i][j] = sum;
 		}
-		float sum = 0;
+		double sum = 0;
 		for (uint32_t k = 0; k < N; k++)
 			sum += UT[i][k] * -F;
 		mat[i][5] = sum;
 	}
-	if (auto solved = Solve(mat))
+	if (Solve(mat))
 	{
-		EllipseParam ellipse{ mat[0][5], mat[1][5], mat[2][5], mat[3][5], mat[4][5] };
+		EllipseParam el{ mat[0][5], mat[1][5], mat[2][5], mat[3][5], mat[4][5] };
 		// 椭圆判别式 B² - 4AC < 0
-		auto value = ellipse.B * ellipse.B - 4.f * ellipse.A * ellipse.C;
-		if (value < 0.f)
+		auto value = el.B * el.B - 4.0 * el.A * el.C;
+		if (value < 0.0)
 		{
-			ellipse.y = (2.f * ellipse.A * ellipse.E - ellipse.B * ellipse.D) / (ellipse.B * ellipse.B - 4.f * ellipse.A * ellipse.C);
-			ellipse.x = (2.f * ellipse.C * ellipse.D - ellipse.B * ellipse.E) / (ellipse.B * ellipse.B - 4.f * ellipse.A * ellipse.C);
-			if (ellipse.x > 0.f && ellipse.x < width &&
-				ellipse.y > 0.f && ellipse.y < height)
+			el.y = (2.0 * el.A * el.E - el.B * el.D) / (el.B * el.B - 4.0 * el.A * el.C);
+			el.x = (2.0 * el.C * el.D - el.B * el.E) / (el.B * el.B - 4.0 * el.A * el.C);
+			if (el.x > 0.0 && el.x < width &&
+				el.y > 0.0 && el.y < height)
 			{
-				ellipse.a = fast_math::sqrt(2.f * (
-					(ellipse.A * ellipse.E * ellipse.E - ellipse.B * ellipse.D * ellipse.E + ellipse.C * ellipse.D * ellipse.D) / (4.f * ellipse.A * ellipse.C - ellipse.B * ellipse.B) - F
-					) / (ellipse.A + ellipse.C - fast_math::sqrt(fast_math::pow(ellipse.A - ellipse.C, 2) + ellipse.B * ellipse.B)));
-				ellipse.b = fast_math::sqrt(2.f * (
-					(ellipse.A * ellipse.E * ellipse.E - ellipse.B * ellipse.D * ellipse.E + ellipse.C * ellipse.D * ellipse.D) / (4.f * ellipse.A * ellipse.C - ellipse.B * ellipse.B) - F
-					) / (ellipse.A + ellipse.C + fast_math::sqrt(fast_math::pow(ellipse.A - ellipse.C, 2) + ellipse.B * ellipse.B)));
+				el.a = precise_math::sqrt(2.0 * (
+					(el.A * el.E * el.E - el.B * el.D * el.E + el.C * el.D * el.D) / (4.0 * el.A * el.C - el.B * el.B) - F
+					) / (el.A + el.C - precise_math::sqrt(precise_math::pow(el.A - el.C, 2) + el.B * el.B)));
+				el.b = precise_math::sqrt(2.0 * (
+					(el.A * el.E * el.E - el.B * el.D * el.E + el.C * el.D * el.D) / (4.0 * el.A * el.C - el.B * el.B) - F
+					) / (el.A + el.C + precise_math::sqrt(precise_math::pow(el.A - el.C, 2) + el.B * el.B)));
 
-				ellipse.theta = fast_math::fabs(fast_math::atan(ellipse.B / (ellipse.A - ellipse.C)) / 2.f);
-				ellipse.area = uint32_t(fast_math::round(ellipse.a * ellipse.b * 3.1415f));
-				const auto major = fast_math::fmax(ellipse.a, ellipse.b);
-				const auto minor = fast_math::fmin(ellipse.a, ellipse.b);
-				ellipse.length = uint32_t(fast_math::round(2.f * 3.14f * minor + 4.f * (major - minor)));
-				ellipse.rank = 0;
+				if (el.a > 10.0 && el.b > 10.f)
+				{
+					el.theta = precise_math::fabs(precise_math::atan(el.B / (el.A - el.C)) / 2.0);
+					el.area = uint32_t(precise_math::round(el.a * el.b * 3.1415));
+					const auto major = precise_math::fmax(el.a, el.b);
+					const auto minor = precise_math::fmin(el.a, el.b);
+					el.length = uint32_t(precise_math::round(2.0 * 3.14 * minor + 4.0 * (major - minor)));
+					el.rank = 0;
 
-				auto id = atomic_fetch_add(&fitsCount(0), 1);
-				ellipse.id = id;
-				ellipses(id) = ellipse;
-				return true;
+					ellipse = el;
+					return true;
+				}
 			}
 		}
 	}

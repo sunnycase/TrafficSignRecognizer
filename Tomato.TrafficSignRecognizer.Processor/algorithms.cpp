@@ -35,7 +35,7 @@ concurrency::graphics::unorm SusanTest(const texture_view<const unorm_4, 2>& ima
 	for (int y = -maxY; y <= maxY; y++)
 	{
 		const auto x² = float(radius * radius - y * y);
-		const auto x1 = fast_math::sqrt(x²);
+		const auto x1 = precise_math::sqrt(x²);
 		const auto x2 = -x1;
 
 		const auto coordY = float(index[0] + y) / (float)image.extent[0];
@@ -44,7 +44,7 @@ concurrency::graphics::unorm SusanTest(const texture_view<const unorm_4, 2>& ima
 			const auto coordX = float(index[1] + x) / (float)image.extent[1];
 			float theGray = Grayscale(image.sample(float_2(coordX, coordY)));
 			sum += theGray;
-			if (fast_math::fabs(theGray - gray) <= threshold)
+			if (precise_math::fabs(theGray - gray) <= threshold)
 				same++;
 			total++;
 		}
@@ -64,7 +64,7 @@ concurrency::graphics::unorm SusanTest(const texture_view<const unorm, 2>& image
 	for (int y = -maxY; y <= maxY; y++)
 	{
 		const auto x² = float(radius * radius - y * y);
-		const auto x1 = fast_math::sqrt(x²);
+		const auto x1 = precise_math::sqrt(x²);
 		const auto x2 = -x1;
 
 		const auto coordY = float(index[0] + y) / (float)image.extent[0];
@@ -73,7 +73,7 @@ concurrency::graphics::unorm SusanTest(const texture_view<const unorm, 2>& image
 			const auto coordX = float(index[1] + x) / (float)image.extent[1];
 			float theGray = image.sample(float_2(coordX, coordY));
 			sum += theGray;
-			if (fast_math::fabs(theGray - gray) <= threshold)
+			if (precise_math::fabs(theGray - gray) <= threshold)
 				same++;
 			total++;
 		}
@@ -121,7 +121,7 @@ float CalculateTangent(const concurrency::graphics::texture_view<const concurren
 
 float_2 FixPoint(float_2 point) restrict(amp)
 {
-	return float_2(fast_math::round(point.x), fast_math::round(point.y));
+	return float_2(precise_math::round(point.x), precise_math::round(point.y));
 }
 
 bool FindEllipsePoints(float_2(&points)[2], float_2(&tagents)[2], const concurrency::graphics::texture_view<const concurrency::graphics::unorm, 2>& edgeView, const concurrency::graphics::texture_view<const float_2, 2>& tangentView, EllipsePoints& ellipse) restrict(amp)
@@ -152,14 +152,14 @@ bool FindEllipsePoints(float_2(&points)[2], float_2(&tagents)[2], const concurre
 	// 线段 MG 上搜索 P3
 	{
 		const auto MG = pG - pM;
-		const auto MGLen = fast_math::sqrt(MG.x * MG.x + MG.y * MG.y);
+		const auto MGLen = precise_math::sqrt(MG.x * MG.x + MG.y * MG.y);
 		if (MGLen < 5.f) return false;
 		// 查找次数
 		const auto times = int(MGLen / 0.5f);
 		const auto step = MG / (float)times;
 
 		const auto P1P2 = pP2 - pP1;
-		auto p1p2Arctan = fast_math::atan2(P1P2.y, P1P2.x);
+		auto p1p2Arctan = precise_math::atan2(P1P2.y, P1P2.x);
 
 		for (int i = 0; i < times; i++)
 		{
@@ -173,8 +173,8 @@ bool FindEllipsePoints(float_2(&points)[2], float_2(&tagents)[2], const concurre
 				// 判断 p3 切线是否与 P1P2平行
 				auto p3Tan = tangentView.sample<filter_point>(P3Coord);
 				const auto threhold = (5 * 2 * 3.14f / 360.f);
-				if (fast_math::fabs(p1p2Arctan - fast_math::atan2(p3Tan.y, p3Tan.x)) <= threhold
-					|| fast_math::fabs(3.14f - p1p2Arctan + fast_math::atan2(p3Tan.y, p3Tan.x)) <= threhold)
+				if (precise_math::fabs(p1p2Arctan - precise_math::atan2(p3Tan.y, p3Tan.x)) <= threhold
+					|| precise_math::fabs(3.14f - p1p2Arctan + precise_math::atan2(p3Tan.y, p3Tan.x)) <= threhold)
 				{
 					// 平行
 					pP3 = cntP3;
@@ -191,7 +191,7 @@ bool FindPoint(float_2 p1, float_2 p2, const texture_view<const unorm, 2>& edgeV
 {
 	const float height = edgeView.extent[0];
 	const auto P1P2 = p2 - p1;
-	const auto P1P2Len = fast_math::sqrt(P1P2.x * P1P2.x + P1P2.y * P1P2.y);
+	const auto P1P2Len = precise_math::sqrt(P1P2.x * P1P2.x + P1P2.y * P1P2.y);
 	if (P1P2Len < 1.f) return false;
 	// 查找次数
 	const auto times = int(P1P2Len / 1.f);
@@ -218,11 +218,11 @@ void FindPoint(float_2(&points)[N], uint32_t& offset, float_2 p1, float_2 pM, fl
 	const auto P1M = pM - p1;
 	const auto P1P3 = p3 - p1;
 
-	const auto P1MLen = fast_math::sqrt(P1M.x * P1M.x + P1M.y * P1M.y);
+	const auto P1MLen = precise_math::sqrt(P1M.x * P1M.x + P1M.y * P1M.y);
 	if (P1MLen < 1.f) return;
-	const auto P1P3Len = fast_math::sqrt(P1P3.x * P1P3.x + P1P3.y * P1P3.y);
+	const auto P1P3Len = precise_math::sqrt(P1P3.x * P1P3.x + P1P3.y * P1P3.y);
 	if (P1P3Len < 1.f) return;
-	const auto times = int(fast_math::fmin(P1MLen, P1P3Len) / 1.5f);
+	const auto times = int(precise_math::fmin(P1MLen, P1P3Len) / 1.5f);
 	const auto step1 = P1M / (float)times;
 	const auto step2 = P1P3 / (float)times;
 
@@ -290,14 +290,14 @@ bool FitEllipse(concurrency::index<2> p1, concurrency::index<2> p2, float p1Tan,
 	// 线段 MG 上搜索 P3
 	{
 		const auto MG = pG - pM;
-		const auto MGLen = fast_math::sqrt(MG.x * MG.x + MG.y * MG.y);
+		const auto MGLen = precise_math::sqrt(MG.x * MG.x + MG.y * MG.y);
 		if (MGLen < 1.f) return false;
 		// 查找次数
 		const auto times = int(MGLen / 1.f);
 		const auto step = MG / (float)times;
 
 		const auto P1P2 = pP2 - pP1;
-		auto p1p2Arctan = fast_math::atan(P1P2.y / P1P2.x);
+		auto p1p2Arctan = precise_math::atan(P1P2.y / P1P2.x);
 
 		for (int i = 0; i < times; i++)
 		{
@@ -310,8 +310,8 @@ bool FitEllipse(concurrency::index<2> p1, concurrency::index<2> p2, float p1Tan,
 			{
 				// 判断 p3 切线是否与 P1P2平行
 				auto p3Tan = tangentView.sample<filter_point>(P3Coord);
-				auto m = fast_math::fabs(p1p2Arctan - fast_math::atan(p3Tan));
-				if (fast_math::fabs(p1p2Arctan - fast_math::atan(p3Tan)) <= (10.f * 2 * 3.14f / 360.f))
+				auto m = precise_math::fabs(p1p2Arctan - precise_math::atan(p3Tan));
+				if (precise_math::fabs(p1p2Arctan - precise_math::atan(p3Tan)) <= (10.f * 2 * 3.14f / 360.f))
 				{
 					// 平行
 					pP3 = cntP3;
@@ -375,9 +375,9 @@ bool FitEllipse(concurrency::index<2> p1, concurrency::index<2> p2, float p1Tan,
 								if (ellipse.x > 0.f && ellipse.x < edgeView.extent[1] &&
 									ellipse.y > 0.f && ellipse.y < edgeView.extent[0])
 								{
-									ellipse.a = fast_math::sqrt((fast_math::pow((ellipse.E - ellipse.B * ellipse.D / (2 * ellipse.A)), 2)
+									ellipse.a = precise_math::sqrt((precise_math::pow((ellipse.E - ellipse.B * ellipse.D / (2 * ellipse.A)), 2)
 										/ (4 * ellipse.C - ellipse.B * ellipse.B / ellipse.A) - F + ellipse.D *ellipse.D / (4 * ellipse.A)) / ellipse.A);
-									ellipse.b = fast_math::sqrt((fast_math::pow((ellipse.E - ellipse.B * ellipse.D / (2 * ellipse.A)), 2)
+									ellipse.b = precise_math::sqrt((precise_math::pow((ellipse.E - ellipse.B * ellipse.D / (2 * ellipse.A)), 2)
 										/ (4 * ellipse.C - ellipse.B * ellipse.B / ellipse.A) - F + ellipse.D *ellipse.D / (4 * ellipse.A))
 										/ (ellipse.C - ellipse.B * ellipse.B / (4 * ellipse.A)));
 									//for (uint32_t i = 0; i < rows; i++)
@@ -410,15 +410,15 @@ bool OnEllipse(const EllipseParam & ellipse, concurrency::graphics::float_2 poin
 	float x[2];
 	if (Solve(ellipse.A, ellipse.B * point.y + ellipse.D, ellipse.C * point.y * point.y + ellipse.E * point.y + F, x))
 	{
-		if (fast_math::fabs(point.x - x[0]) <= threhold) return true;
-		if (fast_math::fabs(point.x - x[1]) <= threhold) return true;
+		if (precise_math::fabs(point.x - x[0]) <= threhold) return true;
+		if (precise_math::fabs(point.x - x[1]) <= threhold) return true;
 	}
 	// y 方向交点 x = x0
 	float y[2];
 	if (Solve(ellipse.C, ellipse.B * point.x + ellipse.E, ellipse.A * point.x * point.x + ellipse.D * point.x + F, y))
 	{
-		if (fast_math::fabs(point.y - y[0]) <= threhold) return true;
-		if (fast_math::fabs(point.y - y[1]) <= threhold) return true;
+		if (precise_math::fabs(point.y - y[0]) <= threhold) return true;
+		if (precise_math::fabs(point.y - y[1]) <= threhold) return true;
 	}
 	return false;
 }
@@ -432,8 +432,8 @@ bool InEllipse(const EllipseParam & ellipse, concurrency::graphics::float_2 poin
 
 bool IsRed(concurrency::graphics::unorm_4 pixel) restrict(cpu, amp)
 {
-	const auto max = fast_math::fmax(pixel.r, fast_math::fmax(pixel.g, pixel.b));
-	const auto min = fast_math::fmin(pixel.r, fast_math::fmin(pixel.g, pixel.b));
+	const auto max = precise_math::fmax(pixel.r, precise_math::fmax(pixel.g, pixel.b));
+	const auto min = precise_math::fmin(pixel.r, precise_math::fmin(pixel.g, pixel.b));
 	const auto V = max;
 	const auto S = (max - min) / max;
 	float H;
@@ -485,12 +485,50 @@ int powneg1(uint32_t n) restrict(cpu, amp)
 	return (n % 2) ? -1 : 1;
 }
 
+uint32_t GetOSTUThreshold(const std::vector<uint32_t>& HistGram)
+{
+	int X, Y, Amount = 0;
+	int PixelBack = 0, PixelFore = 0, PixelIntegralBack = 0, PixelIntegralFore = 0, PixelIntegral = 0;
+	double OmegaBack, OmegaFore, MicroBack, MicroFore, SigmaB, Sigma;              // 类间方差;
+	int MinValue, MaxValue;
+	int Threshold = 0;
+
+	for (MinValue = 0; MinValue < 256 && HistGram[MinValue] == 0; MinValue++);
+	for (MaxValue = 255; MaxValue > MinValue && HistGram[MinValue] == 0; MaxValue--);
+	if (MaxValue == MinValue) return MaxValue;          // 图像中只有一个颜色             
+	if (MinValue + 1 == MaxValue) return MinValue;      // 图像中只有二个颜色
+
+	for (Y = MinValue; Y <= MaxValue; Y++) Amount += HistGram[Y];        //  像素总数
+
+	PixelIntegral = 0;
+	for (Y = MinValue; Y <= MaxValue; Y++) PixelIntegral += HistGram[Y] * Y;
+	SigmaB = -1;
+	for (Y = MinValue; Y < MaxValue; Y++)
+	{
+		PixelBack = PixelBack + HistGram[Y];
+		PixelFore = Amount - PixelBack;
+		OmegaBack = (double)PixelBack / Amount;
+		OmegaFore = (double)PixelFore / Amount;
+		PixelIntegralBack += HistGram[Y] * Y;
+		PixelIntegralFore = PixelIntegral - PixelIntegralBack;
+		MicroBack = (double)PixelIntegralBack / PixelBack;
+		MicroFore = (double)PixelIntegralFore / PixelFore;
+		Sigma = OmegaBack * OmegaFore * (MicroBack - MicroFore) * (MicroBack - MicroFore);
+		if (Sigma > SigmaB)
+		{
+			SigmaB = Sigma;
+			Threshold = Y;
+		}
+	}
+	return Threshold;
+}
+
 bool Solve(float a, float b, float c, float(&x)[2]) restrict(cpu, amp)
 {
 	auto tmp = b * b - 4.f * a * c;
 	if (tmp < 0)
 		return false;
-	tmp = fast_math::sqrt(tmp);
+	tmp = precise_math::sqrt(tmp);
 	x[0] = (-b + tmp) / (2.f * a);
 	x[1] = (-b - tmp) / (2.f * a);
 	return true;

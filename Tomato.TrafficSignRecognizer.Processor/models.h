@@ -12,10 +12,10 @@ DEFINE_NS_TSR_PRCSR
 
 struct EllipseParam
 {
-	float A, B, C, D, E;
-	float x, y;
-	float a, b;
-	float theta;
+	double A, B, C, D, E;
+	double x, y;
+	double a, b;
+	double theta;
 	uint32_t id;
 	uint32_t rank;
 	uint32_t area;
@@ -30,8 +30,8 @@ struct EllipsePoints
 
 struct UnitCirclePoint
 {
-	float rho;
-	float theta;
+	double rho;
+	double theta;
 };
 
 struct ZernikeDataSource
