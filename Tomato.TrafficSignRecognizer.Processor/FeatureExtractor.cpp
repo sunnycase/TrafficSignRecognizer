@@ -238,7 +238,7 @@ concurrency::array_view<const EllipsePoints, 1> FeatureExtractor::AbsorbEllipseP
 
 	_edgePointsCount = edgePointsCount(0);
 	const auto edgeSize = extent<1>(_edgePointsCount);
-	const auto maxPointPairs = extent<1>(edgeSize * 10);
+	const auto maxPointPairs = extent<1>(edgeSize * 2);
 	array<uint32_t, 1> fitsCount(1, &zero, _acc_view, access_type_read);
 	array<EllipsePoints, 1> ellipses(maxPointPairs, _acc_view);
 
@@ -301,6 +301,8 @@ task<void> FeatureExtractor::FindEllipses()
 			points[i * 3 + 1] = pair.p2;
 			points[i * 3 + 2] = pair.p3;
 			outputTex(index<2>(height - pair.p1.y, pair.p1.x)) = 0xFF00FF00;
+			outputTex(index<2>(height - pair.p2.y, pair.p2.x)) = 0xFF00FF00;
+			outputTex(index<2>(height - pair.p3.y, pair.p3.x)) = 0xFF00FF00;
 		}
 		EllipseParam ellipse;
 		if (FitEllipse(points, width, height, ellipse))
@@ -312,24 +314,20 @@ task<void> FeatureExtractor::FindEllipses()
 	});
 	array_view<index<2>, 1> edgePositionsView(_edgePositions);
 	const auto edgeSize = extent<1>(_edgePointsCount);
-
-	parallel_for_each(_acc_view, edgeSize, [=, &fitsCount, &ellipses](index<1> index)restrict(amp)
-	{
-		const auto p1 = edgePositionsView(index[0]);
-		const float_2 point(p1[1], height - p1[0]);
-
-		const auto count = fitsCount(0);
-		for (uint32_t i = 0; i < count; i++)
-		{
-			auto& ellipse = ellipses(i);
-			if (OnEllipse(ellipse, point, 0.8f))
-				atomic_fetch_add(&ellipse.rank, 1);
-		}
-	});
-
 	const auto ellipseCount = fitsCount(0);
+
 	if (ellipseCount)
 	{
+		parallel_for_each(_acc_view, extent<2>(edgeSize[0], ellipseCount), [=, &fitsCount, &ellipses](index<2> index)restrict(amp)
+		{
+			const auto p1 = edgePositionsView(index[0]);
+			const float_2 point(p1[1], height - p1[0]);
+
+			auto& ellipse = ellipses(index[1]);
+			if (OnEllipse(ellipse, point, 0.8f))
+				atomic_fetch_add(&ellipse.rank, 1);
+		});
+
 		std::vector<EllipseParam> ellipsesSort(ellipseCount);
 		copy(ellipses.section(extent<1>(ellipseCount)), ellipsesSort.begin());
 		std::sort(ellipsesSort.begin(), ellipsesSort.end(), [](const EllipseParam& left, const EllipseParam& right)
@@ -351,7 +349,10 @@ task<void> FeatureExtractor::FindEllipses()
 						return (el.a < it.a && el.b < it.b) || (fabs(el.a - it.a) < 3.f && fabs(el.b - it.b) < 3.f);
 					return false;
 				}))
+				{
 					_ellipsesFit.emplace_back(it);
+					break;
+				}
 		}
 
 
@@ -419,7 +420,6 @@ void FeatureExtractor::FillCircleSignTargetsSource()
 		}
 
 		_circleSignTargetsSource.emplace_back(ellipseTex);
-		break;
 	}
 }
 
@@ -487,7 +487,6 @@ void FeatureExtractor::CalculateZernike()
 			const auto Z = sqrt(sV * sV + sVj * sVj);
 			_circleSignZernikes[cntId][i] = { uint32_t(p), q, (float)Z };
 		}
-		break;
 		cntId++;
 	}
 }

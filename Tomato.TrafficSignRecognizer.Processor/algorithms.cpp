@@ -152,14 +152,14 @@ bool FindEllipsePoints(float_2(&points)[2], float_2(&tagents)[2], const concurre
 	// 线段 MG 上搜索 P3
 	{
 		const auto MG = pG - pM;
-		const auto MGLen = precise_math::sqrt(MG.x * MG.x + MG.y * MG.y);
-		if (MGLen < 5.f) return false;
+		const auto MGLen = fast_math::sqrt(MG.x * MG.x + MG.y * MG.y);
+		if (MGLen < 5.f || MGLen > 50.f) return false;
 		// 查找次数
-		const auto times = int(MGLen / 0.5f);
+		const auto times = int(MGLen / 1.f);
 		const auto step = MG / (float)times;
 
 		const auto P1P2 = pP2 - pP1;
-		auto p1p2Arctan = precise_math::atan2(P1P2.y, P1P2.x);
+		auto p1p2Arctan = fast_math::atan2(P1P2.y, P1P2.x);
 
 		for (int i = 0; i < times; i++)
 		{
@@ -173,8 +173,8 @@ bool FindEllipsePoints(float_2(&points)[2], float_2(&tagents)[2], const concurre
 				// 判断 p3 切线是否与 P1P2平行
 				auto p3Tan = tangentView.sample<filter_point>(P3Coord);
 				const auto threhold = (5 * 2 * 3.14f / 360.f);
-				if (precise_math::fabs(p1p2Arctan - precise_math::atan2(p3Tan.y, p3Tan.x)) <= threhold
-					|| precise_math::fabs(3.14f - p1p2Arctan + precise_math::atan2(p3Tan.y, p3Tan.x)) <= threhold)
+				if (fast_math::fabs(p1p2Arctan - precise_math::atan2(p3Tan.y, p3Tan.x)) <= threhold
+					|| fast_math::fabs(3.14f - p1p2Arctan + precise_math::atan2(p3Tan.y, p3Tan.x)) <= threhold)
 				{
 					// 平行
 					pP3 = cntP3;
@@ -443,7 +443,7 @@ bool IsRed(concurrency::graphics::unorm_4 pixel) restrict(cpu, amp)
 	if (pixel.b == max) H = 240 + (pixel.r - pixel.g) / (max - min) * 60;
 	if (H < 0) H = H + 360;
 	const auto y = Grayscale(pixel);
-	return ((H >= 0 && H <= 23) || (H >= 315 && H <= 360)) && (S > 0.4) && (y < 0.8);
+	return ((H >= 0 && H <= 16) || (H >= 315 && H <= 360)) && (S > 0.4) && (y > 0.1 && y < 0.8);
 }
 
 double ZernikeR(int p, int q, double rho) restrict(cpu, amp)

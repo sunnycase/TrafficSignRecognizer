@@ -39,7 +39,7 @@ namespace Tomato.TrafficSignRecognizer
 
         private async void MainPage_Loaded(object sender, RoutedEventArgs e)
         {
-            pb_Feature.Maximum = 2 * 6;
+            pb_Feature.Maximum = 3 * 22;
             var watch = new Stopwatch();
             watch.Start();
             await LoadFeatures();
@@ -76,7 +76,7 @@ namespace Tomato.TrafficSignRecognizer
 
         private async Task LoadFeatures()
         {
-            for (int i = 0; i < 2; i++)
+            for (int i = 0; i < 3; i++)
             {
                 await LoadFeatures(i);
             }
@@ -85,7 +85,7 @@ namespace Tomato.TrafficSignRecognizer
         private async Task LoadFeatures(int label)
         {
             List<float[]> features = new List<float[]>();
-            for (int i = 21; i < 27; i++)
+            for (int i = 0; i < 22; i++)
             {
                 var feature = await ExtractFeature(label, i);
                 if (feature != null)
