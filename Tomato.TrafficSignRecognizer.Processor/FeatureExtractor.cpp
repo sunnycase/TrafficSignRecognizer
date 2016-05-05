@@ -63,6 +63,17 @@ IAsyncOperation<bool>^ FeatureExtractor::Recognize(Windows::Storage::Streams::IR
 	});
 }
 
+IAsyncOperation<bool>^ FeatureExtractor::Recognize()
+{
+	return create_async([=]() -> task<bool>
+	{
+		return FindContours().then([=]
+		{
+			return false;
+		});
+	});
+}
+
 Windows::Foundation::IAsyncOperation<Windows::Foundation::Collections::IIterable<Windows::Foundation::Collections::IVectorView<ZernikeResult>^>^>^ FeatureExtractor::CaculateZernikes()
 {
 	return create_async([=]()
@@ -114,6 +125,10 @@ concurrency::task<void> FeatureExtractor::FindContours()
 	{
 		parallel_for_each(_acc_view, _targetImageExtent, [redTex, outputTex, tangents, edges](index<2> index) restrict(amp)
 		{
+			//if (redTex[index] == 1.f)
+			//	outputTex[index] = uint(0xFFFFFFFF);
+			//else
+			//	outputTex[index] = uint(0xFF000000);
 			//const auto gray = precise_math::sin(precise_math::atan(tangents[index]));
 			//if (gray < 0)
 			//{
@@ -215,13 +230,13 @@ void FeatureExtractor::AbsorbRedTexels()
 			tmpWriter.set(index, unorm(1.f));
 	});
 
-	copy(tmpTex, _redTex);
+	//copy(tmpTex, _redTex);
 }
 
 concurrency::array_view<const EllipsePoints, 1> FeatureExtractor::AbsorbEllipsePointPairs(uint32_t& count)
 {
 	const float height = _targetImageExtent[0];
-	array_view<uint, 2> outputTex(_outputTex);
+	//array_view<uint, 2> outputTex(_outputTex);
 
 	texture_view<const unorm, 2> edgeView(_edgeTex);
 	array<uint, 1> edgePointsCount(1, &zero, _acc_view, access_type_read);
@@ -275,7 +290,7 @@ task<void> FeatureExtractor::FindEllipses()
 {
 	const double height = _targetImageExtent[0];
 	const double width = _targetImageExtent[1];
-	array_view<uint, 2> outputTex(_outputTex);
+	//array_view<uint, 2> outputTex(_outputTex);
 	uint32_t pointsPairCount;
 	auto pointsPairView = AbsorbEllipsePointPairs(pointsPairCount);
 	const auto maxFitTimes = extent<1>(pointsPairCount * 10);
@@ -300,9 +315,9 @@ task<void> FeatureExtractor::FindEllipses()
 			points[i * 3] = pair.p1;
 			points[i * 3 + 1] = pair.p2;
 			points[i * 3 + 2] = pair.p3;
-			outputTex(index<2>(height - pair.p1.y, pair.p1.x)) = 0xFF00FF00;
-			outputTex(index<2>(height - pair.p2.y, pair.p2.x)) = 0xFF00FF00;
-			outputTex(index<2>(height - pair.p3.y, pair.p3.x)) = 0xFF00FF00;
+			//outputTex(index<2>(height - pair.p1.y, pair.p1.x)) = 0xFF00FF00;
+			//outputTex(index<2>(height - pair.p2.y, pair.p2.x)) = 0xFF00FF00;
+			//outputTex(index<2>(height - pair.p3.y, pair.p3.x)) = 0xFF00FF00;
 		}
 		EllipseParam ellipse;
 		if (FitEllipse(points, width, height, ellipse))
@@ -369,7 +384,8 @@ static const uint_2 zero256_2[256] = { 0 };
 void FeatureExtractor::FillCircleSignTargetsSource()
 {
 	float height = _targetImageExtent[0];
-	texture_view<const unorm_4, 2> inputTex(_targetImage);
+	texture_view<const unorm_4, 2> inputTex(_targetImage); 
+	array_view<uint, 2> outputTex(_outputTex);
 
 	_circleSignTargetsSource.clear();
 	for (auto&& el : _ellipsesFit)
@@ -386,7 +402,10 @@ void FeatureExtractor::FillCircleSignTargetsSource()
 			{
 				const float_2 pt(index[1], height - index[0]);
 				if (InEllipse(el, pt))
+				{
+					outputTex(index) = 0xFFFFFFFF;
 					atomic_fetch_add(&grayLevels[Grayscale(inputTex[index]) * 255], 1);
+				}
 			});
 			const std::vector<uint32_t> cpuGrayLevels(grayLevels);
 			threshold = GetOSTUThreshold(cpuGrayLevels) / 255.f;
@@ -420,6 +439,7 @@ void FeatureExtractor::FillCircleSignTargetsSource()
 		}
 
 		_circleSignTargetsSource.emplace_back(ellipseTex);
+		break;
 	}
 }
 
@@ -446,7 +466,6 @@ void FeatureExtractor::CalculateZernike()
 	for (auto&& target : _circleSignTargetsSource)
 	{
 		extent<2> sampleExtent(r * 2, r * 2);
-		array_view<uint, 2> outputTex(_outputTex);
 		array<double, 1> V(sampleExtent.size(), _acc_view), Vj(sampleExtent.size(), _acc_view);
 		for (size_t i = 0; i < mnPairs.size(); i++)
 		{
@@ -462,14 +481,10 @@ void FeatureExtractor::CalculateZernike()
 				{
 					const auto rho = precise_math::sqrt(x * x + y * y) / 0.7;
 					const auto theta = precise_math::atan2(y, x);
-
-					const auto mx = rho * precise_math::cos(theta) * 20.f + outputTex.extent[1] / 2.f;
-					const auto my = rho * precise_math::sin(theta) * 20.f + outputTex.extent[0] / 2.f;
 					const auto u = x / 2 + 0.5;
 					const auto v = -y / 2 + 0.5;
 					if (rho < 1.0 && target.sample<filter_point>(float_2(u, v)) == 1.f)
 					{
-						outputTex(outputTex.extent[0] - my, mx) = uint(0xFFFFFFFF);
 						auto r = ZernikeR(p, q, rho);
 						auto v = ZernikeV(r, q, theta);
 						V[id] = v.x;

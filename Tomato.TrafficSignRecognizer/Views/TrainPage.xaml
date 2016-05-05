@@ -1,0 +1,55 @@
+﻿<Page
+    x:Class="Tomato.TrafficSignRecognizer.Views.TrainPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:Tomato.TrafficSignRecognizer.Views"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:cal="using:Caliburn.Micro"
+    mc:Ignorable="d">
+    <Page.Resources>
+        <cal:BooleanToVisibilityConverter x:Name="BooleanToVisibilityConverter"/>
+        <Style TargetType="TextBlock">
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+    </Page.Resources>
+
+    <Grid Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <TextBlock Margin="0,5">请选择交通标志文件夹（按照类别分为不同子文件夹）</TextBlock>
+        <StackPanel Grid.Row="1" Orientation="Horizontal">
+            <TextBox Width="400" Text="{x:Bind ViewModel.SampleFolderPath, Mode=TwoWay}" IsEnabled="{x:Bind ViewModel.CanOperate, Mode=OneWay}"/>
+            <Button Margin="5,0" Click="{x:Bind ViewModel.Browse}" IsEnabled="{x:Bind ViewModel.CanOperate, Mode=OneWay}">浏览...</Button>
+        </StackPanel>
+        <ProgressBar Grid.Row="2" IsIndeterminate="True" Margin="0,5" Visibility="{x:Bind ViewModel.IsBusy, Mode=OneWay, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+        <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,5"
+                    Visibility="{x:Bind ViewModel.AnalyzeCompleted, Mode=OneWay, Converter={StaticResource BooleanToVisibilityConverter}}">
+            <TextBlock>共包含</TextBlock>
+            <TextBlock Text="{x:Bind ViewModel.ClassCount, Mode=OneWay}"/>
+            <TextBlock>类，共</TextBlock>
+            <TextBlock Text="{x:Bind ViewModel.SamplesCount, Mode=OneWay}"/>
+            <TextBlock>个样本。</TextBlock>
+        </StackPanel>
+        <StackPanel Grid.Row="4" Margin="0,5" Orientation="Horizontal">
+            <TextBlock>使用</TextBlock>
+            <TextBox Width="120" Text="{x:Bind ViewModel.TrainPercent, Mode=TwoWay}"/>
+            <TextBlock>%的样本进行训练，其余样本用于测试。</TextBlock>
+            <Button Click="{x:Bind ViewModel.Train}" IsEnabled="{x:Bind ViewModel.AnalyzeCompleted, Mode=OneWay}">训练模型</Button>
+        </StackPanel>
+        <StackPanel Grid.Row="5" Orientation="Horizontal" Margin="0,5"
+                    Visibility="{x:Bind ViewModel.TrainCompleted, Mode=OneWay, Converter={StaticResource BooleanToVisibilityConverter}}">
+            <TextBlock>训练完成。耗时</TextBlock>
+            <TextBlock Text="{x:Bind ViewModel.ElapsedTrainTime, Mode=OneWay}"/>
+            <TextBlock>。准确率为</TextBlock>
+            <TextBlock Text="{x:Bind ViewModel.Accuracy, Mode=OneWay}"/>
+            <TextBlock>%。</TextBlock>
+        </StackPanel>
+    </Grid>
+</Page>

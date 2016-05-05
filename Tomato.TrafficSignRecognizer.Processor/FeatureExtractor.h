@@ -19,7 +19,9 @@ public:
 
 	Windows::Foundation::IAsyncAction^ SetTarget(Windows::Graphics::Imaging::BitmapFrame ^ frame);
 	Windows::Foundation::IAsyncOperation<bool>^ Recognize(Windows::Storage::Streams::IRandomAccessStream^ outputStream);
+	Windows::Foundation::IAsyncOperation<bool>^ Recognize();
 	Windows::Foundation::IAsyncOperation<Windows::Foundation::Collections::IIterable<Windows::Foundation::Collections::IVectorView<ZernikeResult>^>^>^ CaculateZernikes();
+
 private:
 	concurrency::task<void> PrepareTargetImage(Windows::Graphics::Imaging::BitmapFrame ^ frame);
 	concurrency::task<void> FindContours();

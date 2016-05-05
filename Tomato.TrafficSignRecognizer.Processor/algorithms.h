@@ -10,7 +10,7 @@
 
 DEFINE_NS_TSR_PRCSR
 
-#define F 1000.f
+#define F 1000.0
 
 concurrency::graphics::unorm Grayscale(const concurrency::graphics::unorm_4& color) restrict(cpu, amp);
 concurrency::graphics::unorm Threshold(concurrency::graphics::unorm color, float threshold) restrict(cpu, amp);
@@ -21,7 +21,7 @@ float CalculateTangent(const concurrency::graphics::texture_view<const concurren
 bool FindEllipsePoints(concurrency::graphics::float_2(&points)[2], concurrency::graphics::float_2(&tagents)[2], const concurrency::graphics::texture_view<const concurrency::graphics::unorm, 2>& edgeView, const concurrency::graphics::texture_view<const concurrency::graphics::float_2, 2>& tangentView, EllipsePoints& ellipse) restrict(amp);
 bool FitEllipse(concurrency::index<2> p1, concurrency::index<2> p2, float p1Tan, float p2Tan, const concurrency::graphics::texture_view<const concurrency::graphics::unorm, 2>& edgeView, const concurrency::graphics::texture_view<const float, 2>& tangentView, concurrency::array<uint32_t, 1>& fitsCount, concurrency::array<EllipseParam, 1>& ellipses) restrict(amp);
 concurrency::graphics::float_2 coord(concurrency::graphics::float_2 point, const concurrency::extent<2>& extent) restrict(cpu, amp);
-bool OnEllipse(const EllipseParam& ellipse, concurrency::graphics::float_2 point, float threhold) restrict(cpu,amp);
+bool OnEllipse(const EllipseParam& ellipse, concurrency::graphics::float_2 point, float threhold) restrict(cpu, amp);
 bool InEllipse(const EllipseParam& ellipse, concurrency::graphics::float_2 point) restrict(cpu, amp);
 bool IsRed(concurrency::graphics::unorm_4 pixel) restrict(cpu, amp);
 double ZernikeR(int p, int q, double rho) restrict(cpu, amp);
@@ -29,6 +29,8 @@ concurrency::graphics::double_2 ZernikeV(double r, int q, double theta) restrict
 int factorial(uint32_t n) restrict(cpu, amp);
 int powneg1(uint32_t n) restrict(cpu, amp);
 uint32_t GetOSTUThreshold(const std::vector<uint32_t>& histGram);
+
+concurrency::task<std::array<double, 11>> GetFeature(Windows::Storage::StorageFile^ file);
 
 // 解一元二次方程
 bool Solve(float a, float b, float c, float(&x)[2]) restrict(cpu, amp);
@@ -166,7 +168,7 @@ bool FitEllipse(concurrency::graphics::float_2(&points)[N], double width, double
 					(el.A * el.E * el.E - el.B * el.D * el.E + el.C * el.D * el.D) / (4.0 * el.A * el.C - el.B * el.B) - F
 					) / (el.A + el.C + precise_math::sqrt(precise_math::pow(el.A - el.C, 2) + el.B * el.B)));
 
-				if (el.a > 10.0 && el.b > 10.f)
+				if (el.a > 10.0 && el.b > 10.0)
 				{
 					el.theta = precise_math::fabs(precise_math::atan(el.B / (el.A - el.C)) / 2.0);
 					el.area = uint32_t(precise_math::round(el.a * el.b * 3.1415));

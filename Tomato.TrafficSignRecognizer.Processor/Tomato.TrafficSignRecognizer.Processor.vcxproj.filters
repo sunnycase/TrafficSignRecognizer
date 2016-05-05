@@ -25,6 +25,8 @@
     <ClCompile Include="FeatureExtractor.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
+    <ClCompile Include="ModelTrainer.cpp" />
+    <ClCompile Include="SignModel.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="pch.h">
@@ -52,6 +54,12 @@
       <Filter>头文件</Filter>
     </ClInclude>
     <ClInclude Include="FeatureExtractor.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="ModelTrainer.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="SignModel.h">
       <Filter>头文件</Filter>
     </ClInclude>
   </ItemGroup>

@@ -1,0 +1,537 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<componentModel xmlns:dm0="http://schemas.microsoft.com/VisualStudio/2008/DslTools/Core" xmlns:dm1="http://schemas.microsoft.com/dsltools/Kernel" xmlns:dm2="http://schemas.microsoft.com/dsltools/Component" xmlns:dm3="http://schemas.microsoft.com/dsltools/Activity" xmlns:dm4="http://schemas.microsoft.com/dsltools/UseCase" xmlns:dm5="http://schemas.microsoft.com/dsltools/Interaction" xmlns:dm6="http://schemas.microsoft.com/dsltools/UmlModelLibrary" xmlns:dm7="http://schemas.microsoft.com/dsltools/UmlDiagrams" xmlns:dm8="http://schemas.microsoft.com/dsltools/ModelStore" xmlns:dm9="http://schemas.microsoft.com/dsltools/LogicalClassDesigner" dslVersion="1.0.0.0" Id="9a6a3c47-2dd4-40ff-b1cb-29bcf75bfefd" name="组件图" linkedPackageId="0a9a2ed1-3817-46e7-b3c3-b5b464230761" xmlns="http://schemas.microsoft.com/VisualStudio/TeamArchitect/ComponentDesigner">
+  <profileInstances>
+    <packageHasProfileInstances Id="b94b7aeb-0a34-43a2-81bf-ddd26a3c0a60">
+      <profileInstance Id="7f4fde4e-58f1-4bc8-98f1-0ab81236e0d3" name="StandardProfileL2">
+        <elementDefinition Id="e34d544e-0fea-4ed6-ac5e-1b74119ac791" />
+      </profileInstance>
+      <elementDefinition Id="0caec977-1f8c-4ba3-a7db-8cc9ad9cc73b" />
+    </packageHasProfileInstances>
+    <packageHasProfileInstances Id="ab4d0727-3065-4bf9-81d6-824e316ad93a">
+      <profileInstance Id="23524307-fbb7-4df4-abd3-2695e9442dc6" name="StandardProfileL3">
+        <elementDefinition Id="532ea607-fb19-44b8-8502-3351b05452be" />
+      </profileInstance>
+      <elementDefinition Id="29349502-908c-4fda-9054-c48619c59ed0" />
+    </packageHasProfileInstances>
+  </profileInstances>
+  <packagedElements>
+    <componentModelHasComponents>
+      <component Id="8ac3ee93-719a-4e68-9dd7-71cab02a50dc" name="操作界面" isAbstract="false" isLeaf="false" isActiveClass="false">
+        <elementDefinition Id="b3b19c84-0bd9-4641-bcd3-96cf515227dc" />
+        <ownedAttributesInternal>
+          <requiredInterface Id="8683d9dd-7dab-402b-ba80-9a3a6753ca50" name="Port1" isLeaf="false" isStatic="false" isReadOnly="false" isDerived="false" isDerivedUnion="false" aggregation="None" isComposite="false" isService="false" isBehavior="false">
+            <elementDefinition Id="e5419ca2-0803-477b-b125-7a61224452c6" />
+            <suppliersInternal>
+              <dependency Id="e32ec3b9-4b61-40cb-a7b5-7c7927ba2a3e" name="Windows Runtime">
+                <providedInterfaceMoniker Id="90a387e5-d51f-434f-9f2e-b79dfde50a3d" LastKnownName="Port1" />
+                <elementDefinition Id="43589bbb-1345-4222-aa8c-42ca6f71287f" />
+              </dependency>
+            </suppliersInternal>
+            <type_NamedElement>
+              <interfaceMoniker Id="c5fea4c0-43f4-476b-a3c8-096f41096cfa" LastKnownName="特征计算" />
+            </type_NamedElement>
+          </requiredInterface>
+        </ownedAttributesInternal>
+      </component>
+    </componentModelHasComponents>
+    <componentModelHasComponents>
+      <component Id="9fb1813c-cf61-4936-b81a-55c17a3f59fa" name="特征计算服务" isAbstract="false" isLeaf="false" isActiveClass="false">
+        <elementDefinition Id="e48a4a27-a8bc-4e64-8280-a1062dd478a9" />
+        <ownedAttributesInternal>
+          <part Id="8229ee1a-53b4-466a-8ab8-cee67994da87" name="训练服务" isLeaf="false" isStatic="false" isReadOnly="false" isDerived="false" isDerivedUnion="false" aggregation="Composite" isComposite="true">
+            <elementDefinition Id="58b0f4de-bcbe-40c8-ad68-b0b7aa0b87d1" />
+            <targetNamedElementsInternal>
+              <connector Id="a90cb3fa-7576-4968-a2ea-b60846186441" isLeaf="false" isStatic="false">
+                <partMoniker Id="91972fd1-31c7-4703-9260-7a43bc7cf6a9" LastKnownName="提取服务" />
+                <relationshipOwnedElementsInternal>
+                  <connectorHasConnectorEnds>
+                    <connectorEnd Id="d4cbf718-2581-445c-afe8-850a7ade1429">
+                      <elementDefinition Id="49d45014-4db7-4a36-b19b-d705851c1f06" />
+                      <portWithPart>
+                        <requiredInterfaceMoniker Id="ad09caeb-b2bc-4a52-8903-bb3c379d251c" LastKnownName="Port2" />
+                      </portWithPart>
+                    </connectorEnd>
+                  </connectorHasConnectorEnds>
+                  <connectorHasConnectorEnds>
+                    <connectorEnd Id="0cf1a179-32d4-4cb4-813b-6e5235d23f07">
+                      <elementDefinition Id="f3f96b5d-ba39-4d9a-9218-a6ef43c211e9" />
+                      <portWithPart>
+                        <providedInterfaceMoniker Id="7a9a8d5f-fe7b-443d-bcdf-302608e6be8b" LastKnownName="Port1" />
+                      </portWithPart>
+                    </connectorEnd>
+                  </connectorHasConnectorEnds>
+                </relationshipOwnedElementsInternal>
+                <elementDefinition Id="27d8c748-cff4-428b-9218-1011db8be6e9" />
+              </connector>
+            </targetNamedElementsInternal>
+            <type_NamedElement>
+              <componentMoniker Id="6503d5af-11e6-4874-8a42-0dc412e056a9" LastKnownName="特征训练组件" />
+            </type_NamedElement>
+          </part>
+          <part Id="b02526ad-c229-41da-982b-70d575994ffe" name="预测服务" isLeaf="false" isStatic="false" isReadOnly="false" isDerived="false" isDerivedUnion="false" aggregation="Composite" isComposite="true">
+            <elementDefinition Id="65d9e765-6dd2-4851-b727-b47713722f7d" />
+            <targetNamedElementsInternal>
+              <connector Id="3068558c-f840-408e-ab4c-6d57f639b30a" isLeaf="false" isStatic="false">
+                <partMoniker Id="91972fd1-31c7-4703-9260-7a43bc7cf6a9" LastKnownName="提取服务" />
+                <relationshipOwnedElementsInternal>
+                  <connectorHasConnectorEnds>
+                    <connectorEnd Id="c179b2d8-1c68-49a4-9db5-d08547c4ed47">
+                      <elementDefinition Id="57fb517d-3c35-46b5-8c75-da709effc7f7" />
+                      <portWithPart>
+                        <requiredInterfaceMoniker Id="441fdc2c-3050-4feb-ab11-437049389d17" LastKnownName="Port2" />
+                      </portWithPart>
+                    </connectorEnd>
+                  </connectorHasConnectorEnds>
+                  <connectorHasConnectorEnds>
+                    <connectorEnd Id="d7df641f-cc66-4120-8faa-07488a999ded">
+                      <elementDefinition Id="c3ed96cf-78fd-4525-9496-9f09e4df3f30" />
+                      <portWithPart>
+                        <providedInterfaceMoniker Id="7a9a8d5f-fe7b-443d-bcdf-302608e6be8b" LastKnownName="Port1" />
+                      </portWithPart>
+                    </connectorEnd>
+                  </connectorHasConnectorEnds>
+                </relationshipOwnedElementsInternal>
+                <elementDefinition Id="83c5f984-eb68-4f60-80b0-f32c529963d2" />
+              </connector>
+            </targetNamedElementsInternal>
+            <type_NamedElement>
+              <componentMoniker Id="cb281167-2ac0-4d86-bd1a-89a090e39e56" LastKnownName="特征预测组件" />
+            </type_NamedElement>
+          </part>
+          <part Id="91972fd1-31c7-4703-9260-7a43bc7cf6a9" name="提取服务" isLeaf="false" isStatic="false" isReadOnly="false" isDerived="false" isDerivedUnion="false" aggregation="Composite" isComposite="true">
+            <elementDefinition Id="66cfa586-f606-4fcd-a0ef-2b5e2e6398b9" />
+            <targetNamedElementsInternal>
+              <connector Id="76b64d3a-39f6-4695-83b0-a4ef7b8d3271" isLeaf="false" isStatic="false">
+                <partMoniker Id="e2a1cafe-124e-4914-ae09-327e302fc18b" LastKnownName="椭圆搜索服务" />
+                <relationshipOwnedElementsInternal>
+                  <connectorHasConnectorEnds>
+                    <connectorEnd Id="29393b92-d023-4a75-ad81-cd0db51f0913">
+                      <elementDefinition Id="23e38c7d-b082-456b-b068-878833d5b48b" />
+                      <portWithPart>
+                        <requiredInterfaceMoniker Id="a629466d-1ae0-430c-b9e3-e6f7e60f9a3a" LastKnownName="Port2" />
+                      </portWithPart>
+                    </connectorEnd>
+                  </connectorHasConnectorEnds>
+                  <connectorHasConnectorEnds>
+                    <connectorEnd Id="4880594f-14df-4d1a-ac91-ba2fc6801b77">
+                      <elementDefinition Id="b84911d0-f8b9-4a40-9267-72ce3328c80e" />
+                      <portWithPart>
+                        <providedInterfaceMoniker Id="562e835d-5559-4e08-9ef7-5e5b0b6882f4" LastKnownName="Port1" />
+                      </portWithPart>
+                    </connectorEnd>
+                  </connectorHasConnectorEnds>
+                </relationshipOwnedElementsInternal>
+                <elementDefinition Id="474a824d-1365-47e3-84e4-7c7e092cf1d0" />
+              </connector>
+              <connector Id="fd8522e5-0013-46c5-8cc0-cd79672c6e14" isLeaf="false" isStatic="false">
+                <partMoniker Id="37e34d25-d512-4ef1-91cc-ae12ccb15fd9" LastKnownName="Zernike矩计算服务" />
+                <relationshipOwnedElementsInternal>
+                  <connectorHasConnectorEnds>
+                    <connectorEnd Id="8affe433-051c-424a-80ff-e13e516e8370">
+                      <elementDefinition Id="3cc24458-7ce3-43f5-85f1-8ee6c5fecf71" />
+                      <portWithPart>
+                        <requiredInterfaceMoniker Id="a09cd0c1-914a-48f7-ad05-6b664a53279c" LastKnownName="Port3" />
+                      </portWithPart>
+                    </connectorEnd>
+                  </connectorHasConnectorEnds>
+                  <connectorHasConnectorEnds>
+                    <connectorEnd Id="628f61cf-c096-4f87-9c9d-78f7d27e9272">
+                      <elementDefinition Id="38f39e6d-8e7d-4196-b315-94005afcb454" />
+                      <portWithPart>
+                        <providedInterfaceMoniker Id="a559f893-de1e-4507-a3c6-57d22e20f41d" LastKnownName="Port1" />
+                      </portWithPart>
+                    </connectorEnd>
+                  </connectorHasConnectorEnds>
+                </relationshipOwnedElementsInternal>
+                <elementDefinition Id="ad5a07e2-2e1c-4799-9e86-3ec1ad42aacf" />
+              </connector>
+            </targetNamedElementsInternal>
+            <type_NamedElement>
+              <componentMoniker Id="6633b6da-1e13-4a54-960d-02dc974dee24" LastKnownName="特征提取组件" />
+            </type_NamedElement>
+          </part>
+          <providedInterface Id="90a387e5-d51f-434f-9f2e-b79dfde50a3d" name="Port1" isLeaf="false" isStatic="false" isReadOnly="false" isDerived="false" isDerivedUnion="false" aggregation="None" isComposite="false" isService="false" isBehavior="false">
+            <elementDefinition Id="56f7f8c6-4f40-4791-abb8-b98c81291b87" />
+            <targetNamedElementsInternal>
+              <connector Id="779db8e5-8153-4e2f-b84f-19b130966bf7" isLeaf="false" isStatic="false">
+                <partMoniker Id="8229ee1a-53b4-466a-8ab8-cee67994da87" LastKnownName="训练服务" />
+                <relationshipOwnedElementsInternal>
+                  <connectorHasConnectorEnds>
+                    <connectorEnd Id="a5836dca-daa2-4e48-b02c-c185efaf0f20">
+                      <elementDefinition Id="0eaf2ad0-7b6c-417b-ac03-b58070a13e99" />
+                    </connectorEnd>
+                  </connectorHasConnectorEnds>
+                  <connectorHasConnectorEnds>
+                    <connectorEnd Id="e04779b5-62d5-4ef0-bb3e-da5fac79024d">
+                      <elementDefinition Id="4d204ebc-253b-4588-ba8d-6c3868e2f946" />
+                      <portWithPart>
+                        <providedInterfaceMoniker Id="37702b77-6c8d-415d-b414-6208ee1c8e91" LastKnownName="Port1" />
+                      </portWithPart>
+                    </connectorEnd>
+                  </connectorHasConnectorEnds>
+                </relationshipOwnedElementsInternal>
+                <elementDefinition Id="ad30c903-8913-4dcb-bf1c-0498eb0d2a9c" />
+              </connector>
+              <connector Id="65244103-cc9e-4890-b3b3-9fc88233c00c" isLeaf="false" isStatic="false">
+                <partMoniker Id="b02526ad-c229-41da-982b-70d575994ffe" LastKnownName="预测服务" />
+                <relationshipOwnedElementsInternal>
+                  <connectorHasConnectorEnds>
+                    <connectorEnd Id="d4a9a243-4e49-414b-9918-998eb923cdae">
+                      <elementDefinition Id="e6bfc548-7972-40fa-aed1-3cc61aa10879" />
+                    </connectorEnd>
+                  </connectorHasConnectorEnds>
+                  <connectorHasConnectorEnds>
+                    <connectorEnd Id="6df51119-7d94-4743-b09d-dffa1bb0b0ef">
+                      <elementDefinition Id="aeeeed0a-44e7-48cd-a896-e1255678e72d" />
+                      <portWithPart>
+                        <providedInterfaceMoniker Id="4af7dd6a-17d2-4366-b002-be0f2103a18f" LastKnownName="Port1" />
+                      </portWithPart>
+                    </connectorEnd>
+                  </connectorHasConnectorEnds>
+                </relationshipOwnedElementsInternal>
+                <elementDefinition Id="3e1888df-6d99-41b2-9ad7-fb1743650099" />
+              </connector>
+            </targetNamedElementsInternal>
+            <type_NamedElement>
+              <interfaceMoniker Id="3e356ffa-ef9c-4a6b-9f14-b3dc2c0b8412" LastKnownName="特征计算" />
+            </type_NamedElement>
+          </providedInterface>
+          <part Id="0d02cb9d-d162-440f-b27a-551af2d6a551" name="边缘查找服务" isLeaf="false" isStatic="false" isReadOnly="false" isDerived="false" isDerivedUnion="false" aggregation="Composite" isComposite="true">
+            <elementDefinition Id="edcd7010-418a-4261-bf96-46a24ea2a63d" />
+            <targetNamedElementsInternal>
+              <connector Id="b68df441-b9bf-459c-9b39-fbb2a0116123" isLeaf="false" isStatic="false">
+                <partMoniker Id="5cbe7f1a-0f34-4ed1-ba4e-b4a78d2850f5" LastKnownName="图像二值化服务" />
+                <relationshipOwnedElementsInternal>
+                  <connectorHasConnectorEnds>
+                    <connectorEnd Id="43674a93-390b-401e-a1c3-3e0a6dd8d5e6">
+                      <elementDefinition Id="3bf8c85b-65b6-4a25-8151-d966e903a4f2" />
+                      <portWithPart>
+                        <requiredInterfaceMoniker Id="b3ddaa22-37fc-4ced-aa97-1c897320843c" LastKnownName="Port2" />
+                      </portWithPart>
+                    </connectorEnd>
+                  </connectorHasConnectorEnds>
+                  <connectorHasConnectorEnds>
+                    <connectorEnd Id="5a9500cf-c0c5-4c8e-b4ed-1fcf2b2d3ca1">
+                      <elementDefinition Id="45ebb1ed-85c2-411e-9594-2b9e78adfe6e" />
+                      <portWithPart>
+                        <providedInterfaceMoniker Id="7cd198ff-947f-4958-8d02-15072569962c" LastKnownName="Port1" />
+                      </portWithPart>
+                    </connectorEnd>
+                  </connectorHasConnectorEnds>
+                </relationshipOwnedElementsInternal>
+                <elementDefinition Id="ef303787-caf9-4067-b2d9-cd1223a90985" />
+              </connector>
+            </targetNamedElementsInternal>
+            <type_NamedElement>
+              <componentMoniker Id="bdd5abed-0d82-41b3-9e4d-b516fc812619" LastKnownName="Component2" />
+            </type_NamedElement>
+          </part>
+          <part Id="5cbe7f1a-0f34-4ed1-ba4e-b4a78d2850f5" name="图像二值化服务" isLeaf="false" isStatic="false" isReadOnly="false" isDerived="false" isDerivedUnion="false" aggregation="Composite" isComposite="true">
+            <elementDefinition Id="1f95bb25-33a1-4be2-9144-36d6ceb3effd" />
+            <type_NamedElement>
+              <componentMoniker Id="b32c1fde-7b1a-45ef-b056-6ab4310189b9" LastKnownName="Component3" />
+            </type_NamedElement>
+          </part>
+          <part Id="e2a1cafe-124e-4914-ae09-327e302fc18b" name="椭圆搜索服务" isLeaf="false" isStatic="false" isReadOnly="false" isDerived="false" isDerivedUnion="false" aggregation="Composite" isComposite="true">
+            <elementDefinition Id="fd98babf-cf1a-4d46-bfd0-a3b38cd647c9" />
+            <targetNamedElementsInternal>
+              <connector Id="5a13b4a3-b0e9-4f23-ab49-517b7954c2ba" isLeaf="false" isStatic="false">
+                <partMoniker Id="0d02cb9d-d162-440f-b27a-551af2d6a551" LastKnownName="边缘查找服务" />
+                <relationshipOwnedElementsInternal>
+                  <connectorHasConnectorEnds>
+                    <connectorEnd Id="57712b4f-55a5-4157-b816-1d8c93968c47">
+                      <elementDefinition Id="606999df-ab78-4eb2-8b76-f7881f95b9c8" />
+                      <portWithPart>
+                        <requiredInterfaceMoniker Id="6efb6171-ce31-4311-bbf2-377f2b390ff3" LastKnownName="Port3" />
+                      </portWithPart>
+                    </connectorEnd>
+                  </connectorHasConnectorEnds>
+                  <connectorHasConnectorEnds>
+                    <connectorEnd Id="0d2b1a21-9910-43df-8adf-18ae6fab5e1b">
+                      <elementDefinition Id="457de158-a7e5-4aec-b435-583d1716fe58" />
+                      <portWithPart>
+                        <providedInterfaceMoniker Id="3c20597a-4e31-41d2-99e0-545fa8d51308" LastKnownName="Port1" />
+                      </portWithPart>
+                    </connectorEnd>
+                  </connectorHasConnectorEnds>
+                </relationshipOwnedElementsInternal>
+                <elementDefinition Id="b072e02a-6b14-4d86-abae-9e35a7225f5e" />
+              </connector>
+              <connector Id="69d0e155-732b-49fa-aa89-c918ca7f9a3e" isLeaf="false" isStatic="false">
+                <partMoniker Id="f8786a77-4283-4a58-bd75-5731d80dce24" LastKnownName="颜色分割服务" />
+                <relationshipOwnedElementsInternal>
+                  <connectorHasConnectorEnds>
+                    <connectorEnd Id="73ca15f4-f1e1-4d01-886c-098219c5b60d">
+                      <elementDefinition Id="7764d016-6bfd-4d36-b3b9-8302ed632895" />
+                      <portWithPart>
+                        <requiredInterfaceMoniker Id="6a7df7f9-26d5-4279-984e-b0d5822b4593" LastKnownName="Port2" />
+                      </portWithPart>
+                    </connectorEnd>
+                  </connectorHasConnectorEnds>
+                  <connectorHasConnectorEnds>
+                    <connectorEnd Id="611d7ee6-bb5f-4e95-b3f5-35a04531183e">
+                      <elementDefinition Id="0808a9a5-c005-4c0a-9346-4465a4d6d694" />
+                      <portWithPart>
+                        <providedInterfaceMoniker Id="b39ae5d2-59c6-4730-8806-31cf4bf1162b" LastKnownName="Port1" />
+                      </portWithPart>
+                    </connectorEnd>
+                  </connectorHasConnectorEnds>
+                </relationshipOwnedElementsInternal>
+                <elementDefinition Id="bd4873b7-0374-41a0-9aec-60ba4a3deeaf" />
+              </connector>
+            </targetNamedElementsInternal>
+            <type_NamedElement>
+              <componentMoniker Id="287ce198-8f68-4e56-b168-13c89235b9ca" LastKnownName="Component4" />
+            </type_NamedElement>
+          </part>
+          <part Id="37e34d25-d512-4ef1-91cc-ae12ccb15fd9" name="Zernike矩计算服务" isLeaf="false" isStatic="false" isReadOnly="false" isDerived="false" isDerivedUnion="false" aggregation="Composite" isComposite="true">
+            <elementDefinition Id="79c26500-3e76-4768-833d-6567227f5276" />
+            <type_NamedElement>
+              <componentMoniker Id="3f00b33a-3b8f-444d-9c3b-9232a924ed0a" LastKnownName="Component5" />
+            </type_NamedElement>
+          </part>
+          <part Id="f8786a77-4283-4a58-bd75-5731d80dce24" name="颜色分割服务" isLeaf="false" isStatic="false" isReadOnly="false" isDerived="false" isDerivedUnion="false" aggregation="Composite" isComposite="true">
+            <elementDefinition Id="b621da45-941f-4ee5-9f9f-4d84a6d05915" />
+            <type_NamedElement>
+              <componentMoniker Id="da062cc5-21d2-4f2b-b8df-9e4661b4df9e" LastKnownName="Component6" />
+            </type_NamedElement>
+          </part>
+        </ownedAttributesInternal>
+      </component>
+    </componentModelHasComponents>
+    <componentModelHasComponents>
+      <component Id="6503d5af-11e6-4874-8a42-0dc412e056a9" name="特征训练组件" isAbstract="false" isLeaf="false" isActiveClass="false">
+        <elementDefinition Id="de2d5598-25f9-4d46-aa64-ccde26d0fc41" />
+        <ownedAttributesInternal>
+          <providedInterface Id="37702b77-6c8d-415d-b414-6208ee1c8e91" name="Port1" isLeaf="false" isStatic="false" isReadOnly="false" isDerived="false" isDerivedUnion="false" aggregation="None" isComposite="false" isService="false" isBehavior="false">
+            <elementDefinition Id="6454424f-fe8d-40e0-a497-3b7d8dfe0ecb" />
+            <type_NamedElement>
+              <interfaceMoniker Id="f1631f13-0009-4154-878a-7fce16e5409d" LastKnownName="特征训练" />
+            </type_NamedElement>
+          </providedInterface>
+          <requiredInterface Id="ad09caeb-b2bc-4a52-8903-bb3c379d251c" name="Port2" isLeaf="false" isStatic="false" isReadOnly="false" isDerived="false" isDerivedUnion="false" aggregation="None" isComposite="false" isService="false" isBehavior="false">
+            <elementDefinition Id="ee0a3997-5162-4f68-a3f7-14933f448e57" />
+            <type_NamedElement>
+              <interfaceMoniker Id="4e1726f6-c0bb-48bd-a017-6ef67c1fec3f" LastKnownName="特征提取" />
+            </type_NamedElement>
+          </requiredInterface>
+        </ownedAttributesInternal>
+      </component>
+    </componentModelHasComponents>
+    <componentModelHasComponents>
+      <component Id="cb281167-2ac0-4d86-bd1a-89a090e39e56" name="特征预测组件" isAbstract="false" isLeaf="false" isActiveClass="false">
+        <elementDefinition Id="1b34b79e-eb7f-4f5c-806b-c77a3ad05328" />
+        <ownedAttributesInternal>
+          <providedInterface Id="4af7dd6a-17d2-4366-b002-be0f2103a18f" name="Port1" isLeaf="false" isStatic="false" isReadOnly="false" isDerived="false" isDerivedUnion="false" aggregation="None" isComposite="false" isService="false" isBehavior="false">
+            <elementDefinition Id="34b08ae5-b84c-479b-98d9-c2ea573dca4a" />
+            <type_NamedElement>
+              <interfaceMoniker Id="8a46c6c6-c738-4f5f-ae6c-7fbb6c7e57a7" LastKnownName="特征预测" />
+            </type_NamedElement>
+          </providedInterface>
+          <requiredInterface Id="441fdc2c-3050-4feb-ab11-437049389d17" name="Port2" isLeaf="false" isStatic="false" isReadOnly="false" isDerived="false" isDerivedUnion="false" aggregation="None" isComposite="false" isService="false" isBehavior="false">
+            <elementDefinition Id="93c0b476-9e51-4f4f-9339-5f0617a0f136" />
+            <type_NamedElement>
+              <interfaceMoniker Id="58c58ee2-ef4c-47ba-bad1-e6cc569a0905" LastKnownName="特征提取" />
+            </type_NamedElement>
+          </requiredInterface>
+        </ownedAttributesInternal>
+      </component>
+    </componentModelHasComponents>
+    <componentModelHasComponents>
+      <component Id="6633b6da-1e13-4a54-960d-02dc974dee24" name="特征提取组件" isAbstract="false" isLeaf="false" isActiveClass="false">
+        <elementDefinition Id="df621bb9-7c17-44d4-8e65-e1bba0887c94" />
+        <ownedAttributesInternal>
+          <providedInterface Id="7a9a8d5f-fe7b-443d-bcdf-302608e6be8b" name="Port1" isLeaf="false" isStatic="false" isReadOnly="false" isDerived="false" isDerivedUnion="false" aggregation="None" isComposite="false" isService="false" isBehavior="false">
+            <elementDefinition Id="9a648543-0fb2-4a67-8d31-845b56bd1096" />
+            <type_NamedElement>
+              <interfaceMoniker Id="0f33475e-c01d-4981-b89d-5f86fc69ddac" LastKnownName="特征提取" />
+            </type_NamedElement>
+          </providedInterface>
+          <requiredInterface Id="a629466d-1ae0-430c-b9e3-e6f7e60f9a3a" name="Port2" isLeaf="false" isStatic="false" isReadOnly="false" isDerived="false" isDerivedUnion="false" aggregation="None" isComposite="false" isService="false" isBehavior="false">
+            <elementDefinition Id="645fd700-9e49-4af7-846d-66f87aab3ced" />
+            <type_NamedElement>
+              <interfaceMoniker Id="a24f0e2e-147c-41c7-8a3b-14f7b43d2836" LastKnownName="椭圆搜索" />
+            </type_NamedElement>
+          </requiredInterface>
+          <requiredInterface Id="a09cd0c1-914a-48f7-ad05-6b664a53279c" name="Port3" isLeaf="false" isStatic="false" isReadOnly="false" isDerived="false" isDerivedUnion="false" aggregation="None" isComposite="false" isService="false" isBehavior="false">
+            <elementDefinition Id="bdccf16a-f209-4be3-b027-bba8e6b21f40" />
+            <type_NamedElement>
+              <interfaceMoniker Id="25a2c0a7-7a1e-4bb9-b2b5-812d4759d84a" LastKnownName="Zernike矩计算" />
+            </type_NamedElement>
+          </requiredInterface>
+        </ownedAttributesInternal>
+      </component>
+    </componentModelHasComponents>
+    <modelContainsNamedElements>
+      <Interface Id="c5fea4c0-43f4-476b-a3c8-096f41096cfa" name="特征计算" isAbstract="false" isLeaf="false">
+        <elementDefinition Id="08aaf16a-cfc3-4a4b-8882-266d4c14173d" />
+      </Interface>
+    </modelContainsNamedElements>
+    <modelContainsNamedElements>
+      <Interface Id="3e356ffa-ef9c-4a6b-9f14-b3dc2c0b8412" name="特征计算" isAbstract="false" isLeaf="false">
+        <elementDefinition Id="b31514a7-2ff5-4675-868a-f0a76294292f" />
+      </Interface>
+    </modelContainsNamedElements>
+    <modelContainsNamedElements>
+      <Interface Id="f1631f13-0009-4154-878a-7fce16e5409d" name="特征训练" isAbstract="false" isLeaf="false">
+        <elementDefinition Id="3c610bcd-5235-4e54-9d9b-55ace234f61b" />
+      </Interface>
+    </modelContainsNamedElements>
+    <modelContainsNamedElements>
+      <Interface Id="8a46c6c6-c738-4f5f-ae6c-7fbb6c7e57a7" name="特征预测" isAbstract="false" isLeaf="false">
+        <elementDefinition Id="13f501a2-53fd-460b-85a7-493e2fe4c5c7" />
+      </Interface>
+    </modelContainsNamedElements>
+    <modelContainsNamedElements>
+      <Interface Id="0f33475e-c01d-4981-b89d-5f86fc69ddac" name="特征提取" isAbstract="false" isLeaf="false">
+        <elementDefinition Id="6d69dea7-a07d-415e-b6f9-03f56d12d014" />
+      </Interface>
+    </modelContainsNamedElements>
+    <modelContainsNamedElements>
+      <Interface Id="4e1726f6-c0bb-48bd-a017-6ef67c1fec3f" name="特征提取" isAbstract="false" isLeaf="false">
+        <elementDefinition Id="ee1384ac-4568-44fb-a9da-9ab28c2d3361" />
+      </Interface>
+    </modelContainsNamedElements>
+    <modelContainsNamedElements>
+      <Interface Id="58c58ee2-ef4c-47ba-bad1-e6cc569a0905" name="特征提取" isAbstract="false" isLeaf="false">
+        <elementDefinition Id="1e0d9518-441d-4e47-9f25-550e075f80bf" />
+      </Interface>
+    </modelContainsNamedElements>
+    <componentModelHasComponents>
+      <component Id="bdd5abed-0d82-41b3-9e4d-b516fc812619" name="Component2" isAbstract="false" isLeaf="false" isActiveClass="false">
+        <elementDefinition Id="6262e3d5-6957-4a95-9646-ac64f4e5357e" />
+        <ownedAttributesInternal>
+          <providedInterface Id="3c20597a-4e31-41d2-99e0-545fa8d51308" name="Port1" isLeaf="false" isStatic="false" isReadOnly="false" isDerived="false" isDerivedUnion="false" aggregation="None" isComposite="false" isService="false" isBehavior="false">
+            <elementDefinition Id="6c700a35-a9ff-4cdd-8dc4-74bf8e83406a" />
+            <type_NamedElement>
+              <interfaceMoniker Id="d81d8aef-2083-4c99-bd45-ede085d50c86" LastKnownName="边缘查找" />
+            </type_NamedElement>
+          </providedInterface>
+          <requiredInterface Id="b3ddaa22-37fc-4ced-aa97-1c897320843c" name="Port2" isLeaf="false" isStatic="false" isReadOnly="false" isDerived="false" isDerivedUnion="false" aggregation="None" isComposite="false" isService="false" isBehavior="false">
+            <elementDefinition Id="5669cc67-d0b5-48d7-a491-ab10fc90a295" />
+            <type_NamedElement>
+              <interfaceMoniker Id="74fc1aa4-8489-4224-baf8-258be3f46b1e" LastKnownName="图像二值化" />
+            </type_NamedElement>
+          </requiredInterface>
+        </ownedAttributesInternal>
+      </component>
+    </componentModelHasComponents>
+    <componentModelHasComponents>
+      <component Id="b32c1fde-7b1a-45ef-b056-6ab4310189b9" name="Component3" isAbstract="false" isLeaf="false" isActiveClass="false">
+        <elementDefinition Id="fccb521e-3851-43d3-8ddb-58bf787a7c8b" />
+        <ownedAttributesInternal>
+          <providedInterface Id="7cd198ff-947f-4958-8d02-15072569962c" name="Port1" isLeaf="false" isStatic="false" isReadOnly="false" isDerived="false" isDerivedUnion="false" aggregation="None" isComposite="false" isService="false" isBehavior="false">
+            <elementDefinition Id="fdac2ba0-3c19-4fba-88a2-b4be1a1aed5a" />
+            <type_NamedElement>
+              <interfaceMoniker Id="f692ccf2-2d4d-4c66-8910-ad750f5a28cb" LastKnownName="图像二值化" />
+            </type_NamedElement>
+          </providedInterface>
+        </ownedAttributesInternal>
+      </component>
+    </componentModelHasComponents>
+    <componentModelHasComponents>
+      <component Id="287ce198-8f68-4e56-b168-13c89235b9ca" name="Component4" isAbstract="false" isLeaf="false" isActiveClass="false">
+        <elementDefinition Id="8b752db3-36d6-4e32-aec4-52bbde4962a8" />
+        <ownedAttributesInternal>
+          <providedInterface Id="562e835d-5559-4e08-9ef7-5e5b0b6882f4" name="Port1" isLeaf="false" isStatic="false" isReadOnly="false" isDerived="false" isDerivedUnion="false" aggregation="None" isComposite="false" isService="false" isBehavior="false">
+            <elementDefinition Id="bb6f0772-dc82-4ac3-8a09-599398d6b762" />
+            <type_NamedElement>
+              <interfaceMoniker Id="90e39525-3dfe-44ba-ab91-33e46755145e" LastKnownName="椭圆搜索" />
+            </type_NamedElement>
+          </providedInterface>
+          <requiredInterface Id="6a7df7f9-26d5-4279-984e-b0d5822b4593" name="Port2" isLeaf="false" isStatic="false" isReadOnly="false" isDerived="false" isDerivedUnion="false" aggregation="None" isComposite="false" isService="false" isBehavior="false">
+            <elementDefinition Id="75670f13-b14e-4283-893f-b6c2ff8b4b92" />
+            <type_NamedElement>
+              <interfaceMoniker Id="81208d84-0f55-4493-a453-9d64c9bb41a0" LastKnownName="颜色分割" />
+            </type_NamedElement>
+          </requiredInterface>
+          <requiredInterface Id="6efb6171-ce31-4311-bbf2-377f2b390ff3" name="Port3" isLeaf="false" isStatic="false" isReadOnly="false" isDerived="false" isDerivedUnion="false" aggregation="None" isComposite="false" isService="false" isBehavior="false">
+            <elementDefinition Id="84c0cce8-6f0c-4eb0-9c67-1ed7b807d787" />
+            <type_NamedElement>
+              <interfaceMoniker Id="b8c113f4-d5a1-4081-b614-974d8c35b881" LastKnownName="边缘查找" />
+            </type_NamedElement>
+          </requiredInterface>
+        </ownedAttributesInternal>
+      </component>
+    </componentModelHasComponents>
+    <componentModelHasComponents>
+      <component Id="3f00b33a-3b8f-444d-9c3b-9232a924ed0a" name="Component5" isAbstract="false" isLeaf="false" isActiveClass="false">
+        <elementDefinition Id="f5290918-516e-4490-9ffe-9e58dc24f999" />
+        <ownedAttributesInternal>
+          <providedInterface Id="a559f893-de1e-4507-a3c6-57d22e20f41d" name="Port1" isLeaf="false" isStatic="false" isReadOnly="false" isDerived="false" isDerivedUnion="false" aggregation="None" isComposite="false" isService="false" isBehavior="false">
+            <elementDefinition Id="c792b3cb-8a95-4bcf-8fb7-53cd4bda65e9" />
+            <type_NamedElement>
+              <interfaceMoniker Id="e88ac21a-b590-400b-b716-c4a9f6efcebf" LastKnownName="Zernike矩计算" />
+            </type_NamedElement>
+          </providedInterface>
+        </ownedAttributesInternal>
+      </component>
+    </componentModelHasComponents>
+    <modelContainsNamedElements>
+      <Interface Id="90e39525-3dfe-44ba-ab91-33e46755145e" name="椭圆搜索" isAbstract="false" isLeaf="false">
+        <elementDefinition Id="c3da92fa-4a21-4982-9be5-24f03774ad55" />
+      </Interface>
+    </modelContainsNamedElements>
+    <modelContainsNamedElements>
+      <Interface Id="d81d8aef-2083-4c99-bd45-ede085d50c86" name="边缘查找" isAbstract="false" isLeaf="false">
+        <elementDefinition Id="8f21f5ba-61a8-4d40-ab7b-88880dbaa700" />
+      </Interface>
+    </modelContainsNamedElements>
+    <modelContainsNamedElements>
+      <Interface Id="f692ccf2-2d4d-4c66-8910-ad750f5a28cb" name="图像二值化" isAbstract="false" isLeaf="false">
+        <elementDefinition Id="8f48c646-1f6e-4eec-9fd8-775320c777a5" />
+      </Interface>
+    </modelContainsNamedElements>
+    <modelContainsNamedElements>
+      <Interface Id="74fc1aa4-8489-4224-baf8-258be3f46b1e" name="图像二值化" isAbstract="false" isLeaf="false">
+        <elementDefinition Id="3799a1b2-d3d1-4ad7-a6bb-c4bfad6a3d43" />
+      </Interface>
+    </modelContainsNamedElements>
+    <modelContainsNamedElements>
+      <Interface Id="e88ac21a-b590-400b-b716-c4a9f6efcebf" name="Zernike矩计算" isAbstract="false" isLeaf="false">
+        <elementDefinition Id="539647aa-0d73-4422-8751-4a0a900f2e05" />
+      </Interface>
+    </modelContainsNamedElements>
+    <componentModelHasComponents>
+      <component Id="da062cc5-21d2-4f2b-b8df-9e4661b4df9e" name="Component6" isAbstract="false" isLeaf="false" isActiveClass="false">
+        <elementDefinition Id="2fd62967-209b-4644-89a2-14ba49f19f5e" />
+        <ownedAttributesInternal>
+          <providedInterface Id="b39ae5d2-59c6-4730-8806-31cf4bf1162b" name="Port1" isLeaf="false" isStatic="false" isReadOnly="false" isDerived="false" isDerivedUnion="false" aggregation="None" isComposite="false" isService="false" isBehavior="false">
+            <elementDefinition Id="ac1f8cc0-e16f-4161-a10b-007b1b944ff7" />
+            <type_NamedElement>
+              <interfaceMoniker Id="d7ff8d78-2221-4eaa-b2ea-f263accf74e2" LastKnownName="颜色分割" />
+            </type_NamedElement>
+          </providedInterface>
+        </ownedAttributesInternal>
+      </component>
+    </componentModelHasComponents>
+    <modelContainsNamedElements>
+      <Interface Id="d7ff8d78-2221-4eaa-b2ea-f263accf74e2" name="颜色分割" isAbstract="false" isLeaf="false">
+        <elementDefinition Id="8fa4c8a2-a6b5-411a-a5ca-487509a20612" />
+      </Interface>
+    </modelContainsNamedElements>
+    <modelContainsNamedElements>
+      <Interface Id="81208d84-0f55-4493-a453-9d64c9bb41a0" name="颜色分割" isAbstract="false" isLeaf="false">
+        <elementDefinition Id="c5ab472c-f28a-4d24-aa0a-b0093f920d15" />
+      </Interface>
+    </modelContainsNamedElements>
+    <modelContainsNamedElements>
+      <Interface Id="b8c113f4-d5a1-4081-b614-974d8c35b881" name="边缘查找" isAbstract="false" isLeaf="false">
+        <elementDefinition Id="2b60b144-c527-4bce-adfa-40e70542309d" />
+      </Interface>
+    </modelContainsNamedElements>
+    <modelContainsNamedElements>
+      <Interface Id="a24f0e2e-147c-41c7-8a3b-14f7b43d2836" name="椭圆搜索" isAbstract="false" isLeaf="false">
+        <elementDefinition Id="adadc560-9df5-4ea9-bab7-5cecf0f8151e" />
+      </Interface>
+    </modelContainsNamedElements>
+    <modelContainsNamedElements>
+      <Interface Id="25a2c0a7-7a1e-4bb9-b2b5-812d4759d84a" name="Zernike矩计算" isAbstract="false" isLeaf="false">
+        <elementDefinition Id="4e83d919-3d14-4ecd-9a2d-c4c59ac4e0a7" />
+      </Interface>
+    </modelContainsNamedElements>
+  </packagedElements>
+  <package Id="0a9a2ed1-3817-46e7-b3c3-b5b464230761" name="ModelingProject">
+    <elementDefinition Id="13b3cf34-78f0-44e7-8fef-b7e4a66c2d44" />
+  </package>
+</componentModel>

@@ -5,10 +5,12 @@
 // 创建日期：2016-02-26
 #include "pch.h"
 #include "algorithms.h"
+#include "FeatureExtractor.h"
 #include <amp_math.h>
 
 using namespace concurrency;
 using namespace concurrency::graphics;
+using namespace Windows::Graphics::Imaging;
 
 DEFINE_NS_TSR_PRCSR
 
@@ -54,7 +56,7 @@ concurrency::graphics::unorm SusanTest(const texture_view<const unorm_4, 2>& ima
 
 concurrency::graphics::unorm SusanTest(const texture_view<const unorm, 2>& image, index<2> index, unsigned int radius, float threshold) restrict(amp)
 {
-	// 转化为灰度图
+	// 获取灰度值
 	float gray = image[index];
 
 	float sum = 0.f;
@@ -521,6 +523,23 @@ uint32_t GetOSTUThreshold(const std::vector<uint32_t>& HistGram)
 		}
 	}
 	return Threshold;
+}
+
+concurrency::task<std::array<double, 11>> GetFeature(Windows::Storage::StorageFile ^ file)
+{
+	auto decoder = co_await create_task(BitmapDecoder::CreateAsync(co_await create_task(file->OpenReadAsync())));
+	auto frame = co_await create_task(decoder->GetFrameAsync(0));
+	auto ext = ref new FeatureExtractor(frame->OrientedPixelWidth, frame->OrientedPixelHeight);
+	co_await create_task(ext->SetTarget(frame));
+	co_await create_task(ext->Recognize());
+	auto rawFeatures = co_await create_task(ext->CaculateZernikes());
+	for (auto&& el : rawFeatures)
+	{
+		std::array<double, 11> arr{ el->GetAt(0).z, el->GetAt(1).z, el->GetAt(2).z, el->GetAt(3).z, el->GetAt(4).z, el->GetAt(5).z,
+			el->GetAt(6).z, el->GetAt(7).z, el->GetAt(8).z, el->GetAt(9).z, el->GetAt(10).z };
+		return arr;
+	}
+	return std::array<double, 11>{};
 }
 
 bool Solve(float a, float b, float c, float(&x)[2]) restrict(cpu, amp)

@@ -7,8 +7,42 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
 
-    <Grid Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
-        <ProgressBar x:Name="pb_Feature"/>
-        <TextBlock x:Name="tb_Status"/>
-    </Grid>
+    <SplitView Loaded="{x:Bind ViewModel.SetupMenu}" DisplayMode="CompactOverlay" OpenPaneLength="200">
+        <SplitView.Pane>
+            <ListBox>
+                <ListBox.Resources>
+                    <Style TargetType="StackPanel">
+                        <Setter Property="Orientation" Value="Horizontal"/>
+                    </Style>
+                    <Style TargetType="SymbolIcon">
+                        <Setter Property="Margin" Value="0,2,12,0"/>
+                        <Setter Property="Width" Value="25"/>
+                        <Setter Property="Height" Value="25"/>
+                    </Style>
+                    <Style TargetType="TextBlock">
+                        <Setter Property="VerticalAlignment" Value="Center"/>
+                        <Setter Property="FontSize" Value="16"/>
+                    </Style>
+                </ListBox.Resources>
+                <ListBoxItem Tapped="{x:Bind ViewModel.SwitchMenu}" HorizontalAlignment="Left">
+                    <StackPanel>
+                        <FontIcon Glyph="&#xE700;" Margin="2,0"/>
+                    </StackPanel>
+                </ListBoxItem>
+                <ListBoxItem Tapped="{x:Bind ViewModel.NavigateToTrain}">
+                    <StackPanel>
+                        <SymbolIcon Symbol="Setting"/>
+                        <TextBlock>训练</TextBlock>
+                    </StackPanel>
+                </ListBoxItem>
+                <ListBoxItem Tapped="{x:Bind ViewModel.NavigateToRecognize}">
+                    <StackPanel>
+                        <SymbolIcon Symbol="Scan"/>
+                        <TextBlock>识别</TextBlock>
+                    </StackPanel>
+                </ListBoxItem>
+            </ListBox>
+        </SplitView.Pane>
+        <Frame Margin="5" Loaded="{x:Bind ViewModel.SetupNavigationService}"/>
+    </SplitView>
 </Page>
